@@ -31,10 +31,10 @@ export function BakeryDomainProvider({ adapter, bakeryId, children }: { readonly
   return <BakeryDomainContext.Provider value={value}>{children}</BakeryDomainContext.Provider>;
 }
 
-export function useBakeryDomain(): { readonly state: BakeryDomainState; readonly commands: BakeryDomainCommands } {
+export function useBakeryDomain(): { readonly state: BakeryDomainState; readonly commands: BakeryDomainCommands; readonly bakeryId: BakeryId } {
   const context = useDomainContext();
   const state = useBakeryDomainSelector((next) => next);
-  return useMemo(() => ({ state, commands: context.commands }), [context.commands, state]);
+  return useMemo(() => ({ state, commands: context.commands, bakeryId: context.bakeryId }), [context.bakeryId, context.commands, state]);
 }
 
 function useDomainContext(): BakeryDomainContextValue {
@@ -54,7 +54,6 @@ export function useBakeryDomainSelector<T>(selector: (state: BakeryDomainState) 
   const hasSelectedRef = useRef(false);
   const getVisibleState = useCallback(() => {
     const state = controller.getState();
-    // An active-bakery change must never briefly expose the prior bakery's state.
     return state.resource.status !== "idle" && state.resource.bakeryId === bakeryId ? state : loadingState;
   }, [controller, bakeryId, loadingState]);
 
