@@ -8,13 +8,14 @@
 
 ## 2. Retire Previous Orchestration Implementation
 
-- [x] 2.1 Inventory every file under `orchestration/` and `packages/multi-agent-delivery/`, plus `docs/MULTI_AGENT_DELIVERY.md`.
-- [x] 2.2 Audit current `AGENTS.md`, repository navigation/configuration, durable docs, and the legacy Bakery profile for references to the superseded framework.
+- [x] 2.1 Inventory every file under `orchestration/` and `packages/multi-agent-delivery/`, plus `docs/MULTI_AGENT_DELIVERY.md` and the superseded Antigravity `.agents/skills/orch*` skills.
+- [x] 2.2 Audit current `AGENTS.md`, repository navigation/configuration, durable docs, the legacy Bakery profile, and installed agent assets for references to the superseded framework.
 - [x] 2.3 Confirm no root package/workspace manifest wires `packages/multi-agent-delivery` into the application build. The legacy profile imports the package, but the application/runtime tree does not.
 - [x] 2.4 Delete `orchestration/bakery-app.profile.mjs`; the empty `orchestration/` directory is no longer present in Git.
 - [x] 2.5 Delete the complete `packages/multi-agent-delivery/` package. No other tracked package exists under that old top-level responsibility.
 - [x] 2.6 Remove `docs/MULTI_AGENT_DELIVERY.md`. Current durable agent guidance now points to ORCH/OpenSpec instead of preserving the superseded Sol/Terra delivery system.
 - [x] 2.7 Rewrite current root instructions/navigation so `.orch/`, `.agents/`, and `.codex/` are the active ORCH integration and the retired framework must not be recreated.
+- [x] 2.8 Remove the obsolete Bakery-specific `.agents/skills/orch`, `.agents/skills/orch-plan`, and `.agents/skills/orch-archive` skills, which explicitly depended on `packages/multi-agent-delivery`. Preserve the current ORCH-managed `.agents/workflows/orch-{explore,plan,execute,archive}.md`, `.agents/rules/orch.md`, and current Codex ORCH skills.
 
 ## 3. Source-of-Truth Cleanup
 
@@ -39,20 +40,21 @@
 
 ## 6. Verification
 
-- [x] 6.1 GitHub contents checks confirm `orchestration/` and `packages/multi-agent-delivery/` return not found on this branch, while `.orch/`, `.agents/`, and `.codex/` remain present.
+- [x] 6.1 GitHub contents checks confirm `orchestration/` and `packages/multi-agent-delivery/` return not found on this branch, while `.orch/`, `.agents/`, and `.codex/` remain present. The obsolete Antigravity `orch*` skill folders are removed while the current four `.agents/workflows/orch-*.md` files remain.
 - [ ] 6.2 Run a local repository text search for legacy orchestration paths/model-policy terms to supplement the static reference audit; GitHub code search is not indexed for this repository, so an exhaustive connector search is unavailable.
 - [ ] 6.3 Run `orch doctor` locally and confirm the database-reference warning is resolved by `docs/database/database-schema.md`.
 - [ ] 6.4 Run `orch organize` locally and verify no high-confidence safe-move violations remain from the files handled by this change.
 - [ ] 6.5 Run a local link/reference search for moved paths and verify current non-archive references resolve. Known canonical instructions/config/navigation references were repaired in the implementation commit.
 - [ ] 6.6 Run the normal local verification baseline needed for delivery (`pnpm run typecheck`, `pnpm run lint`, `pnpm run test`, `pnpm run build` from `Front-end/`). No `Front-end/` file changed in the GitHub diff, but command execution is still required before archive/merge.
-- [x] 6.7 GitHub compare against `main` confirms the implementation changes only repository instructions/docs/OpenSpec governance plus deletion of the standalone legacy orchestration framework; no `Front-end/` application, migration, API implementation, or product runtime file changed.
+- [x] 6.7 GitHub compare against `main` confirms the implementation changes only repository instructions/docs/OpenSpec governance plus deletion of the standalone legacy orchestration framework/skills; no `Front-end/` application, migration, API implementation, or product runtime file changed.
 - [x] 6.8 Record the static verification evidence and leave local-command gates unchecked rather than fabricating results.
 
 ## Static Verification Evidence
 
 - Legacy orchestration package inventory contained README/package metadata, five source modules, type declarations, and its package test; all are removed in the implementation diff.
-- `orchestration/bakery-app.profile.mjs` and `docs/MULTI_AGENT_DELIVERY.md` are removed.
-- `.orch/config.json`, `.agents/`, and `.codex/` are present on the execution branch after deletion.
+- `orchestration/bakery-app.profile.mjs`, `docs/MULTI_AGENT_DELIVERY.md`, and the three old `.agents/skills/orch*` directories are removed.
+- `.orch/config.json`, `.agents/rules/orch.md`, `.agents/workflows/`, and `.codex/` remain present on the execution branch.
+- `.agents/workflows/` contains the current `orch-explore`, `orch-plan`, `orch-execute`, and `orch-archive` managed workflows.
 - Product and UI/UX docs are Git-level renames with zero content changes.
 - Architecture and deployment docs are Git-level renames with zero content changes.
 - The old root technical/API/backend requirement documents are retained only under `openspec/changes/organize-project-documentation/reference/`, whose README marks them historical/non-authoritative.
