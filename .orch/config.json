@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "tokenOptimization": {
+    "enabled": true,
+    "rtk": {
+      "enabled": true
+    },
+    "repomix": {
+      "enabled": true
+    },
+    "llmlingua": {
+      "enabled": true,
+      "minimumTokens": 8000,
+      "targetRatio": 0.5,
+      "minimumTargetTokens": 4000
+    },
+    "tracking": {
+      "enabled": true
+    }
+  },
+  "organization": {
+    "enabled": true,
+    "docs": {
+      "enabled": true,
+      "root": "docs",
+      "enforceRootHygiene": true,
+      "updateWithImplementation": true
+    }
+  }
+}
