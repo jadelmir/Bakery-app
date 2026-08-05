@@ -1,7 +1,7 @@
 schema: spec-driven
 
 context: |
-  Product roadmap: Bakery_Production_and_Cost_App_PRD_v1.1.md defines the 12
+  Product roadmap: docs/product/bakery-production-and-cost-app-prd-v1-1.md defines the 12
   frontend and 12 backend product phases. OpenSpec is the source of truth for
   approved planned work; PROGRAM_MAP.md keeps phase, capability, evidence, and
   dependency traceability current. Preserve product phases: agents are an
@@ -11,8 +11,8 @@ context: |
   bakery-domain records, calculations, and generated plans remain local
   prototype behavior unless evidence proves otherwise. Archived changes are
   immutable. Recover a missing result through a new corrective change.
-  Use multi-agent delivery only when the user requests it and independent work
-  has non-overlapping task and file ownership.
+  Use ORCH delegation/parallelism only when the approved work can be divided
+  into independent work with non-overlapping writable ownership.
 
 rules:
   proposal:
