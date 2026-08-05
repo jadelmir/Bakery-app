@@ -1,0 +1,4 @@
+# Project-local MCP access for Codex agents. Restart/open a new task after changes.
+[mcp_servers.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]

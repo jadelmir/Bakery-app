@@ -1,0 +1,26 @@
+packages:
+  - '.'
+allowBuilds:
+  '@fission-ai/openspec': true
+  '@tailwindcss/oxide': true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@supabase/auth-js@2.111.0'
+  - '@supabase/functions-js@2.111.0'
+  - '@supabase/postgrest-js@2.111.0'
+  - '@supabase/realtime-js@2.111.0'
+  - '@supabase/storage-js@2.111.0'
+  - '@supabase/supabase-js@2.111.0'
+overrides:
+  vite: 6.3.5
+  '@types/react': 19.2.17
+  '@types/react-dom': 19.2.3
+supportedArchitectures:
+  os:
+    - linux
+    - win32
+  cpu:
+    - x64
+    - arm64
+  libc:
+    - glibc

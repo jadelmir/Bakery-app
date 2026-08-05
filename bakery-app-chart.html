@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bakery App — Product Flow</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --canvas: #f6efe5;
+      --surface: rgba(255, 252, 246, 0.92);
+      --surface-strong: #fffaf2;
+      --ink: #30251d;
+      --muted: #78695d;
+      --line: #d8c8b9;
+      --brand: #a64f2a;
+      --brand-soft: #f4d6c3;
+      --green: #3e7356;
+      --green-soft: #dbeadf;
+      --gold: #b67920;
+      --gold-soft: #f6e6be;
+      --blue: #486c78;
+      --blue-soft: #dce9ec;
+      --shadow: 0 22px 60px rgba(68, 43, 24, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        radial-gradient(circle at 8% 8%, rgba(191, 123, 69, 0.14), transparent 31rem),
+        radial-gradient(circle at 94% 20%, rgba(62, 115, 86, 0.10), transparent 29rem),
+        var(--canvas);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 38px 0 48px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--brand);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 720px;
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.25rem, 5vw, 4.6rem);
+      font-weight: 500;
+      letter-spacing: -0.045em;
+      line-height: 0.98;
+    }
+
+    .subtitle {
+      max-width: 650px;
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.65;
+    }
+
+    .release {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .release::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      content: "";
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat {
+      padding: 17px 19px;
+      border: 1px solid rgba(166, 79, 42, 0.13);
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: 0 10px 30px rgba(68, 43, 24, 0.05);
+    }
+
+    .stat-value {
+      display: block;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.65rem;
+      line-height: 1;
+    }
+
+    .stat-label {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .chart-shell {
+      overflow: hidden;
+      border: 1px solid rgba(101, 74, 54, 0.16);
+      border-radius: 26px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .chart-head {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .chart-title {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.3rem;
+      font-weight: 500;
+    }
+
+    .legend {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .legend span {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .legend i {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .legend span:last-child i {
+      background: var(--gold);
+    }
+
+    .flow {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(125px, 1fr));
+      gap: 18px;
+      padding: 38px 22px 28px;
+    }
+
+    .flow::before {
+      position: absolute;
+      top: 84px;
+      right: 8%;
+      left: 8%;
+      height: 2px;
+      background: linear-gradient(90deg, var(--brand-soft), var(--green-soft));
+      content: "";
+    }
+
+    .node {
+      position: relative;
+      z-index: 1;
+      min-height: 132px;
+      padding: 18px 15px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface-strong);
+      color: var(--ink);
+      text-align: left;
+      cursor: pointer;
+      transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .node:hover {
+      transform: translateY(-3px);
+      border-color: var(--brand);
+      box-shadow: 0 12px 24px rgba(68, 43, 24, 0.10);
+    }
+
+    .node:focus-visible {
+      outline: 3px solid rgba(166, 79, 42, 0.25);
+      outline-offset: 3px;
+    }
+
+    .node[aria-pressed="true"] {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px var(--brand-soft);
+    }
+
+    .node-number {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      margin-bottom: 16px;
+      border-radius: 50%;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .node h3 {
+      margin: 0 0 7px;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .node p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.77rem;
+      line-height: 1.45;
+    }
+
+    .detail {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr);
+      gap: 22px;
+      min-height: 150px;
+      padding: 22px;
+      border-top: 1px solid var(--line);
+      background: linear-gradient(135deg, rgba(244, 214, 195, 0.32), rgba(219, 234, 223, 0.28));
+    }
+
+    .detail-kicker {
+      margin: 0 0 7px;
+      color: var(--brand);
+      font-size: 0.73rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .detail h2 {
+      margin: 0 0 8px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.5rem;
+      font-weight: 500;
+    }
+
+    .detail-copy {
+      max-width: 680px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .detail-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .pill {
+      display: inline-flex;
+      gap: 7px;
+      align-items: center;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 0.77rem;
+      font-weight: 700;
+    }
+
+    .pill.next {
+      background: var(--gold-soft);
+      color: #785010;
+    }
+
+    .foundation {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 16px;
+      align-items: center;
+      padding: 18px 22px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .foundation strong {
+      color: var(--ink);
+    }
+
+    .foundation-divider {
+      width: 1px;
+      height: 28px;
+      background: var(--line);
+    }
+
+    .foundation div:last-child {
+      text-align: right;
+    }
+
+    @media (max-width: 980px) {
+      .flow {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .flow::before {
+        display: none;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .page {
+        width: min(100% - 20px, 1180px);
+        padding-top: 24px;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .release {
+        justify-self: start;
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .chart-head,
+      .detail,
+      .foundation {
+        grid-template-columns: 1fr;
+      }
+
+      .chart-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+        padding-top: 22px;
+      }
+
+      .node {
+        min-height: 0;
+      }
+
+      .foundation-divider {
+        width: 100%;
+        height: 1px;
+      }
+
+      .foundation div:last-child {
+        text-align: left;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .node {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Bakery production &amp; costing</p>
+        <h1>From order to oven, in one connected flow.</h1>
+        <p class="subtitle">
+          An interactive map of the Bakery App’s current browser prototype and
+          the operational workflow it is designed to support.
+        </p>
+      </div>
+      <div class="release">Prototype verified</div>
+    </header>
+
+    <section class="stats" aria-label="Project status">
+      <div class="stat">
+        <span class="stat-value">7</span>
+        <span class="stat-label">Completed OpenSpec changes</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">33</span>
+        <span class="stat-label">Passing automated and browser tests</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">7.0.2</span>
+        <span class="stat-label">TypeScript compiler</span>
+      </div>
+    </section>
+
+    <section class="chart-shell" aria-labelledby="chart-title">
+      <div class="chart-head">
+        <h2 class="chart-title" id="chart-title">Bakery operating flow</h2>
+        <div class="legend" aria-label="Status legend">
+          <span><i aria-hidden="true"></i>Local prototype implemented</span>
+          <span><i aria-hidden="true"></i>Supabase persistence next</span>
+        </div>
+      </div>
+
+      <div class="flow" role="list" aria-label="Application workflow stages">
+        <button class="node" type="button" role="listitem" aria-pressed="true" data-key="auth">
+          <span class="node-number">01</span>
+          <h3>Authentication</h3>
+          <p>Sign-up, sign-in, session shell, and logout.</p>
+        </button>
+        <button class="node" type="button" role="listitem" aria-pressed="false" data-key="orders">
+          <span class="node-number">02</span>
+          <h3>Orders</h3>
+          <p>Capture products, quantities, customer, and pickup.</p>
+        </button>
+        <button class="node" type="button" role="listitem" aria-pressed="false" data-key="planning">
+          <span class="node-number">03</span>
+          <h3>Production plan</h3>
+          <p>Assign one traceable plan to each completed order.</p>
+        </button>
+        <button class="node" type="button" role="listitem" aria-pressed="false" data-key="schedule">
+          <span class="node-number">04</span>
+          <h3>Schedule &amp; tasks</h3>
+          <p>Generate timed steps, dependencies, and task states.</p>
+        </button>
+        <button class="node" type="button" role="listitem" aria-pressed="false" data-key="inventory">
+          <span class="node-number">05</span>
+          <h3>Inventory &amp; starters</h3>
+          <p>Calculate requirements and compatible starter builds.</p>
+        </button>
+        <button class="node" type="button" role="listitem" aria-pressed="false" data-key="reporting">
+          <span class="node-number">06</span>
+          <h3>Reporting</h3>
+          <p>Surface readiness, warnings, progress, and summaries.</p>
+        </button>
+      </div>
+
+      <aside class="detail" aria-live="polite">
+        <div>
+          <p class="detail-kicker" id="detail-kicker">Entry point</p>
+          <h2 id="detail-title">Authentication shell</h2>
+          <p class="detail-copy" id="detail-copy">
+            The frontend supports local sign-up, sign-in, and logout flows across
+            desktop and mobile layouts. Supabase Auth is the next persistence layer.
+          </p>
+        </div>
+        <div class="detail-meta">
+          <span class="pill" id="detail-status">✓ Implemented locally</span>
+          <span class="pill next" id="detail-next">Next: Supabase Auth</span>
+        </div>
+      </aside>
+
+      <footer class="foundation">
+        <div><strong>Frontend:</strong> React 18 · Vite 6 · TypeScript 7</div>
+        <span class="foundation-divider" aria-hidden="true"></span>
+        <div><strong>Data layer:</strong> Local browser state today · Supabase MCP connected for development</div>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    const stages = {
+      auth: {
+        kicker: "Entry point",
+        title: "Authentication shell",
+        copy: "The frontend supports local sign-up, sign-in, and logout flows across desktop and mobile layouts. Supabase Auth is the next persistence layer.",
+        status: "✓ Implemented locally",
+        next: "Next: Supabase Auth"
+      },
+      orders: {
+        kicker: "Customer commitment",
+        title: "Order capture",
+        copy: "The five-step workflow records order details, products, quantities, timing, and confirmation before creating a stable local order record.",
+        status: "✓ Workflow verified",
+        next: "Next: Database records"
+      },
+      planning: {
+        kicker: "Traceable handoff",
+        title: "Order-linked production plan",
+        copy: "Each completed order receives one generated plan. Its tasks retain the order identifier, and duplicate completion does not create duplicate tasks.",
+        status: "✓ Association complete",
+        next: "Next: Durable plan storage"
+      },
+      schedule: {
+        kicker: "Operational engine",
+        title: "Schedule and production tasks",
+        copy: "Production flows generate timed work with task states, dependencies, recalculation rules, calendar navigation, and schedule warnings.",
+        status: "✓ Engine implemented",
+        next: "Next: Realtime updates"
+      },
+      inventory: {
+        kicker: "Material readiness",
+        title: "Inventory and starter builds",
+        copy: "Requirements connect production demand to ingredient needs, while starter builds expose seed, flour, water, usable amount, and retained amount.",
+        status: "✓ Prototype implemented",
+        next: "Next: Inventory ledger"
+      },
+      reporting: {
+        kicker: "Management view",
+        title: "Reporting and notifications",
+        copy: "The reporting layer summarizes production readiness, inventory pressure, warnings, and bakery activity for quick operational decisions.",
+        status: "✓ UI implemented",
+        next: "Next: Live analytics"
+      }
+    };
+
+    const buttons = Array.from(document.querySelectorAll(".node"));
+    const kicker = document.getElementById("detail-kicker");
+    const title = document.getElementById("detail-title");
+    const copy = document.getElementById("detail-copy");
+    const status = document.getElementById("detail-status");
+    const next = document.getElementById("detail-next");
+
+    function selectStage(key) {
+      const stage = stages[key];
+      if (!stage) return;
+
+      buttons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.key === key));
+      });
+
+      kicker.textContent = stage.kicker;
+      title.textContent = stage.title;
+      copy.textContent = stage.copy;
+      status.textContent = stage.status;
+      next.textContent = stage.next;
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => selectStage(button.dataset.key));
+    });
+  </script>
+</body>
+</html>

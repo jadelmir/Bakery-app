@@ -1,0 +1,6 @@
+schema: "1.0"
+change:
+  name: add-customer-management
+  title: Add Customer Directory and Management (Phase F5)
+  status: proposed
+  created: "2026-07-29"

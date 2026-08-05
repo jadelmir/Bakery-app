@@ -1,0 +1,4 @@
+schema: spec-driven
+name: establish-docs-foundation
+description: Create the four canonical documentation files required by PROJECT_ORGANIZATION_STANDARD.md and AI_AGENT_TOKEN_EFFICIENCY.md, rename existing files to match the standard naming convention, and update all cross-references. Pure documentation change — no source code or product behavior changes.
+skip_specs: true

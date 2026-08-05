@@ -1,0 +1,47 @@
+schema: spec-driven
+
+context: |
+  Product roadmap: Bakery_Production_and_Cost_App_PRD_v1.1.md defines the 12
+  frontend and 12 backend product phases. OpenSpec is the source of truth for
+  approved planned work; PROGRAM_MAP.md keeps phase, capability, evidence, and
+  dependency traceability current. Preserve product phases: agents are an
+  optional execution strategy inside an approved change, not a roadmap.
+  The runtime is mixed: Supabase persists authentication, workspaces, team
+  membership, invitations, and tenant boundaries where verified; many
+  bakery-domain records, calculations, and generated plans remain local
+  prototype behavior unless evidence proves otherwise. Archived changes are
+  immutable. Recover a missing result through a new corrective change.
+  Use multi-agent delivery only when the user requests it and independent work
+  has non-overlapping task and file ownership.
+
+rules:
+  proposal:
+    - Cite the PRD phase, capability, dependencies, and owning change; update PROGRAM_MAP.md when coverage or state changes.
+    - State bounded scope and explicit non-goals, including persistence and hosted-rollout boundaries.
+    - Identify overlapping active deltas and assign one owner rather than duplicating scope.
+  design:
+    - Record directional prerequisites, decisions, risks, evidence boundaries, and the return path for failed verification.
+    - Preserve product-phase completion gates; describe agent assignments only as an execution plan.
+  specs:
+    - Use testable SHALL requirements and scenarios, with terminology that distinguishes persisted state from derived or local behavior.
+    - Trace each requirement to its roadmap phase, owner, and upstream capability where applicable.
+  tasks:
+    - Map tasks to requirements and acceptance evidence; use bounded, non-overlapping ownership.
+    - Do not mark a task complete without focused verification evidence; distinguish local implementation, documentation, and hosted rollout.
+
+operations:
+  apply:
+    guidance:
+      - Apply only approved tasks within declared ownership and retain evidence for each acceptance criterion.
+      - Stop for a scope conflict, missing product decision, destructive action, or external authority requirement.
+      - Record focused verification results and failed gates before declaring applied work complete.
+  sync:
+    guidance:
+      - Sync only verified deltas after main specs, task ledger, evidence, and PROGRAM_MAP.md agree on readiness.
+      - Never use synchronization to resolve an overlapping active-change ownership conflict.
+      - Review the rendered main-spec result and update the program map in the same planning pass.
+  archive:
+    guidance:
+      - Archive only when required work is complete and artifacts, verification evidence, synchronized main specs, and PROGRAM_MAP.md agree.
+      - Preserve archives byte-for-byte; use a new corrective change for omissions or errors.
+      - Confirm no required work remains and cite the evidence that makes the change archive-ready.

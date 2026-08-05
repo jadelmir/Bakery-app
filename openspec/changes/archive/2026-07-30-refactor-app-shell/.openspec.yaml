@@ -1,0 +1,4 @@
+schema: spec-driven
+name: refactor-app-shell
+description: Refactor App.tsx into a Thin Shell (Phase F12 / Quality Polish) — pure structural extraction, no product-facing behavior changes
+skip_specs: true

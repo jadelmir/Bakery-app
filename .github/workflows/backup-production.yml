@@ -1,0 +1,57 @@
+name: Scheduled Production Database Backup
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Dump Production Database
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase CLI to Production Project
+        run: supabase link --project-ref ${{ secrets.PRODUCTION_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+
+      - name: Create Backup Directory
+        run: mkdir -p backups
+
+      - name: Dump Production Schema and Data
+        run: |
+          TIMESTAMP=$(date +'%Y%m%d_%H%M%S')
+          SCHEMA_FILE="backups/prod_schema_${TIMESTAMP}.sql"
+          DATA_FILE="backups/prod_data_${TIMESTAMP}.sql"
+          
+          echo "Dumping database schema..."
+          supabase db dump --linked -f "$SCHEMA_FILE"
+          
+          echo "Dumping database data..."
+          supabase db dump --linked --data-only -f "$DATA_FILE"
+          
+          echo "SCHEMA_FILE=$SCHEMA_FILE" >> $GITHUB_ENV
+          echo "DATA_FILE=$DATA_FILE" >> $GITHUB_ENV
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+
+      - name: Upload Secure Backup Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-db-daily-backup
+          path: |
+            ${{ env.SCHEMA_FILE }}
+            ${{ env.DATA_FILE }}
+          retention-days: 30

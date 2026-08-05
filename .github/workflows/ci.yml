@@ -1,0 +1,60 @@
+name: CI Quality Pipeline
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+jobs:
+  ci:
+    name: Continuous Integration Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase local stack
+        run: supabase start
+
+      - name: Reset local database & verify migrations
+        run: supabase db reset
+
+      - name: Lint database schema
+        run: supabase db lint
+
+      - name: Install dependencies in Front-end
+        working-directory: Front-end
+        run: npm ci || npm install
+
+      - name: TypeScript typecheck
+        working-directory: Front-end
+        run: npm run typecheck
+
+      - name: Code linting
+        working-directory: Front-end
+        run: npm run lint
+
+      - name: Run unit tests
+        working-directory: Front-end
+        run: npm test
+
+      - name: Build frontend application
+        working-directory: Front-end
+        run: npm run build
+
+      - name: Stop Supabase stack
+        if: always()
+        run: supabase stop
