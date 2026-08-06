@@ -80,9 +80,15 @@ describe("order presentation selectors", () => {
     expect(selectPresentedOrders(orders, { now: NOW }).map(item => item.id)).toEqual(["newest", "middle", "older"]);
   });
 
-  it("keeps stable input order when creation timestamps are unavailable", () => {
-    const orders = [order({ id: "first" }), order({ id: "second" }), order({ id: "third" })];
-    expect(sortOrdersByNewest(orders).map(item => item.id)).toEqual(["first", "second", "third"]);
+  it("keeps deterministic fallback order for equal, missing, and invalid creation timestamps", () => {
+    const orders = [
+      order({ id: "equal-a", createdAt: "2026-08-02T09:00:00.000Z" }),
+      order({ id: "missing" }),
+      order({ id: "equal-b", createdAt: "2026-08-02T09:00:00.000Z" }),
+      order({ id: "invalid", createdAt: "not-a-date" }),
+    ];
+
+    expect(sortOrdersByNewest(orders).map(item => item.id)).toEqual(["equal-a", "equal-b", "missing", "invalid"]);
   });
 
   it("labels upcoming pickups with the number of calendar days remaining", () => {
