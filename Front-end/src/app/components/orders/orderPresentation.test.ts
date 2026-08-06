@@ -6,6 +6,7 @@ import {
   getSecondaryStatusCounts,
   parsePickupDateTime,
   selectPresentedOrders,
+  sortOrdersByNewest,
   sortOrdersByPickup,
 } from "./orderPresentation";
 
@@ -68,6 +69,22 @@ describe("order presentation selectors", () => {
     expect(getPickupPresentation(orders[1], NOW).label).toBe("Today");
   });
 
+  it("sorts newest-created orders first regardless of pickup date", () => {
+    const orders = [
+      order({ id: "older", pickup: "2026-08-10", createdAt: "2026-08-01T12:00:00.000Z" }),
+      order({ id: "newest", pickup: "2026-08-04", createdAt: "2026-08-03T15:30:00.000Z" }),
+      order({ id: "middle", pickup: "2026-08-02", createdAt: "2026-08-02T09:00:00.000Z" }),
+    ];
+
+    expect(sortOrdersByNewest(orders).map(item => item.id)).toEqual(["newest", "middle", "older"]);
+    expect(selectPresentedOrders(orders, { now: NOW }).map(item => item.id)).toEqual(["newest", "middle", "older"]);
+  });
+
+  it("keeps stable input order when creation timestamps are unavailable", () => {
+    const orders = [order({ id: "first" }), order({ id: "second" }), order({ id: "third" })];
+    expect(sortOrdersByNewest(orders).map(item => item.id)).toEqual(["first", "second", "third"]);
+  });
+
   it("labels upcoming pickups with the number of calendar days remaining", () => {
     expect(getPickupPresentation(order({ pickup: "2026-08-04", pickupTime: "08:00" }), NOW).label).toBe("Due tomorrow");
     expect(getPickupPresentation(order({ pickup: "2026-08-05", pickupTime: "08:00" }), NOW).label).toBe("Due in 2 days");
@@ -76,9 +93,9 @@ describe("order presentation selectors", () => {
 
   it("composes stage, search, payment, product, and pickup filters without mutation", () => {
     const orders = [
-      order({ id: "#101", customer: "Amina", status: "ready", paid: 4, paymentStatus: "partially-paid", pickup: "2026-08-04" }),
-      order({ id: "#102", customer: "Noah", status: "ready", items: [{ product: "Focaccia", qty: 2, price: 8 }], pickup: "Aug 4", pickupTime: "10:00 AM" }),
-      order({ id: "#103", customer: "Amina", status: "confirmed", pickup: "2026-08-04" }),
+      order({ id: "#101", customer: "Amina", status: "ready", paid: 4, paymentStatus: "partially-paid", pickup: "2026-08-04", createdAt: "2026-08-01T09:00:00.000Z" }),
+      order({ id: "#102", customer: "Noah", status: "ready", items: [{ product: "Focaccia", qty: 2, price: 8 }], pickup: "Aug 4", pickupTime: "10:00 AM", createdAt: "2026-08-03T09:00:00.000Z" }),
+      order({ id: "#103", customer: "Amina", status: "confirmed", pickup: "2026-08-04", createdAt: "2026-08-02T09:00:00.000Z" }),
     ];
     const original = structuredClone(orders);
 
