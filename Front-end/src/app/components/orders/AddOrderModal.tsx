@@ -18,6 +18,7 @@ export function AddOrderModal({ onClose, onCreatePlan, customers = CUSTOMERS, re
   const { bakeryId, commands } = useBakeryDomain();
   const [step, setStep] = useState<OrderStep>(1);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [createdCustomers, setCreatedCustomers] = useState<Customer[]>([]);
   const [customerEditorOpen, setCustomerEditorOpen] = useState(false);
   const [items, setItems] = useState<OrderItemDraft[]>([]);
   const [pickupDate, setPickupDate] = useState("2026-08-05");
@@ -30,6 +31,10 @@ export function AddOrderModal({ onClose, onCreatePlan, customers = CUSTOMERS, re
 
   const STEP_LABELS = ["Customer", "Products", "Pickup", "Payment", "Confirm"];
   const total = items.reduce((sum, item) => sum + item.qty * item.price, 0);
+  const availableCustomers = [
+    ...createdCustomers,
+    ...customers.filter(customer => !createdCustomers.some(created => created.id === customer.id)),
+  ];
 
   const addItem = (product: string, price: number, recipeId?: string) =>
     setItems(prev => {
@@ -63,7 +68,7 @@ export function AddOrderModal({ onClose, onCreatePlan, customers = CUSTOMERS, re
     const created = result.data.changes.customers?.[0];
     if (!created) throw new Error("Customer creation returned no customer result.");
 
-    setSelectedCustomer({
+    const createdCustomer: Customer = {
       id: created.id,
       name: created.name,
       phone: created.phone ?? "",
@@ -74,7 +79,13 @@ export function AddOrderModal({ onClose, onCreatePlan, customers = CUSTOMERS, re
       totalSpent: 0,
       balance: 0,
       favorites: [],
-    });
+    };
+
+    setCreatedCustomers(current => [
+      createdCustomer,
+      ...current.filter(customer => customer.id !== createdCustomer.id),
+    ]);
+    setSelectedCustomer(createdCustomer);
     setCustomerEditorOpen(false);
   };
 
@@ -117,7 +128,7 @@ export function AddOrderModal({ onClose, onCreatePlan, customers = CUSTOMERS, re
               <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#988D84]" />
               <input placeholder="Search customers…" className="w-full h-11 pl-9 pr-4 bg-[#F6F0E8] border border-[#E5DDD3] rounded-[10px] text-sm placeholder:text-[#988D84] focus:outline-none focus:border-[#B4643B] transition-colors" />
             </div>
-            {customers.map(customer => (
+            {availableCustomers.map(customer => (
               <button key={customer.id} type="button" onClick={() => setSelectedCustomer(customer)} aria-pressed={selectedCustomer?.id === customer.id}
                 className={`w-full text-left flex items-center gap-3 p-3.5 rounded-[12px] border cursor-pointer transition-all ${selectedCustomer?.id === customer.id ? "border-[#7A3E24] bg-[#FAF1EB]" : "border-[#E5DDD3] bg-white hover:bg-[#F6F0E8]"}`}>
                 <div className="w-9 h-9 rounded-full bg-[#F3DED1] flex items-center justify-center flex-shrink-0">
@@ -130,18 +141,6 @@ export function AddOrderModal({ onClose, onCreatePlan, customers = CUSTOMERS, re
                 {selectedCustomer?.id === customer.id && <Check size={16} className="text-[#7A3E24]" />}
               </button>
             ))}
-            {selectedCustomer && !customers.some(customer => customer.id === selectedCustomer.id) && (
-              <button type="button" aria-pressed="true" className="w-full text-left flex items-center gap-3 p-3.5 rounded-[12px] border border-[#7A3E24] bg-[#FAF1EB]">
-                <div className="w-9 h-9 rounded-full bg-[#F3DED1] flex items-center justify-center flex-shrink-0">
-                  <span className="text-sm font-extrabold text-[#7A3E24]">{selectedCustomer.name[0]}</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-[#2F2925]">{selectedCustomer.name}</p>
-                  <p className="text-xs text-[#988D84]">{selectedCustomer.email}</p>
-                </div>
-                <Check size={16} className="text-[#7A3E24]" />
-              </button>
-            )}
             <button type="button" onClick={() => setCustomerEditorOpen(true)} className="w-full h-11 border-2 border-dashed border-[#E5DDD3] rounded-[12px] text-sm text-[#988D84] font-semibold flex items-center justify-center gap-2 hover:border-[#B4643B] hover:text-[#B4643B] transition-colors">
               <Plus size={14} /> Add new customer
             </button>
