@@ -64,7 +64,7 @@ export function InventoryAdjustModal({ isOpen, onClose, items = [], selectedItem
       command = { type: "receive", itemId, packageCount: packages, packageQuantity: each, baseQuantity: packages * each, packagePrice: price, invoiceRef: invoiceRef.trim() || undefined, notes: notes.trim() || undefined };
     } else if (action === "physical-count") {
       const value = Number(count);
-      if (!Number.isFinite(value) || value < 0) return setError("Enter a physical count of zero or more.");
+      if (count.trim() === "" || !Number.isFinite(value) || value < 0) return setError("Enter a physical count of zero or more.");
       command = { type: "physical-count", itemId, count: value, notes: notes.trim() || undefined };
     } else {
       const value = Number(quantityChange);
