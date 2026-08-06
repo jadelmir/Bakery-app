@@ -19,54 +19,65 @@ The project SHALL run a deterministic frontend CI pipeline for pull requests tar
 - **WHEN** the frontend is built and tested
 - **THEN** CI SHALL NOT require production hosting credentials, database passwords, service-role keys, or other private production secrets.
 
-## Requirement: Independent frontend staging deployment
+## Requirement: GitHub Pages development frontend deployment
 
-The project SHALL publish the static Vite frontend to a real staging hosting target independently of Supabase database migration and Edge Function deployment.
+The project SHALL publish the static Vite frontend from `develop` to GitHub Pages independently of Supabase database migration and Edge Function deployment.
 
-### Scenario: Deploy frontend to staging
+### Scenario: Deploy frontend to development
 
-- **GIVEN** an eligible revision reaches `develop`
-- **WHEN** the staging frontend deployment workflow executes
-- **THEN** it SHALL build `Front-end` with staging client-safe configuration
-- **AND** publish `Front-end/dist` to the configured staging frontend host
+- **GIVEN** an eligible frontend revision reaches `develop`
+- **WHEN** the GitHub Pages frontend deployment workflow executes
+- **THEN** it SHALL build `Front-end` with client-safe staging/development configuration
+- **AND** use `/Bakery-app/` as the Vite project base path
+- **AND** publish `Front-end/dist` through GitHub Pages Actions
 - **AND** record the deployed URL/revision
-- **AND** run a post-deploy smoke check
+- **AND** verify the deployed root and SPA deep-link fallback
 - **AND** report deployment failure when publishing or smoke verification fails.
 
-### Scenario: Frontend-only staging change
+### Scenario: Refresh a client-side route on GitHub Pages
+
+- **GIVEN** the development frontend is deployed below `/Bakery-app/`
+- **WHEN** a browser requests a client-side route such as `/Bakery-app/orders` directly
+- **THEN** the static 404 fallback SHALL preserve the requested application path
+- **AND** redirect through the SPA entry point
+- **AND** BrowserRouter SHALL resolve the restored route using the Vite base URL.
+
+### Scenario: Frontend-only development change
 
 - **GIVEN** a release changes only frontend code or frontend configuration
-- **WHEN** the staging frontend deployment runs
-- **THEN** the frontend publication SHALL NOT require a database migration to execute.
+- **WHEN** the GitHub Pages deployment runs
+- **THEN** frontend publication SHALL NOT require a database migration or database credential.
 
-## Requirement: Protected production frontend deployment
+## Requirement: Production frontend deployment remains opt-in
 
-The project SHALL deploy the production frontend from `main` through the protected production GitHub Environment and verify the live deployment.
+The project SHALL NOT publish the production frontend automatically from `main` until a production hosting provider/domain is explicitly selected and a separate approved OpenSpec change enables that release path.
 
-### Scenario: Deploy approved frontend to production
+### Scenario: Merge frontend code to main before production hosting is configured
 
-- **GIVEN** the intended revision is present on `main`
-- **AND** required production environment approval has been granted where configured
-- **WHEN** the production frontend deployment executes
-- **THEN** it SHALL build with production client-safe `VITE_*` configuration
-- **AND** publish the static frontend to the configured production host
-- **AND** identify the deployed commit SHA and URL
-- **AND** run post-deploy smoke verification.
+- **GIVEN** frontend code reaches `main`
+- **AND** production frontend hosting has not been enabled
+- **WHEN** GitHub Actions evaluates deployment workflows
+- **THEN** no placeholder or accidental production frontend publish SHALL execute
+- **AND** production Supabase backup/migration/Edge Function automation SHALL remain independently governed.
 
-### Scenario: Protect browser build secrets
+## Requirement: Protect browser build secrets
 
-- **GIVEN** a staging or production frontend build
+Only browser-safe values SHALL be exposed to Vite frontend builds.
+
+### Scenario: Supply development frontend configuration
+
+- **GIVEN** the GitHub Pages frontend build
 - **WHEN** environment configuration is supplied to Vite
 - **THEN** only browser-safe values SHALL use the `VITE_` prefix
-- **AND** service-role keys, database passwords, and other server-only secrets SHALL NOT be exposed to the frontend build.
+- **AND** service-role keys, database passwords, Supabase management tokens, and other server-only secrets SHALL NOT be exposed to the frontend build.
 
 ## Requirement: Frontend rollback independence
 
-The project SHALL support frontend rollback by redeploying a last-known-good frontend revision without automatically reversing database migrations.
+The project SHALL support development frontend rollback by redeploying a last-known-good frontend revision without automatically reversing database migrations.
 
-### Scenario: Roll back a broken frontend release
+### Scenario: Roll back a broken development frontend release
 
-- **GIVEN** a newly deployed frontend revision is broken
-- **WHEN** an operator performs a frontend rollback
-- **THEN** a prior known-good frontend revision SHALL be redeployed
+- **GIVEN** a newly deployed GitHub Pages revision is broken
+- **WHEN** an operator redeploys a known-good committed revision
+- **THEN** that frontend revision SHALL be published independently
 - **AND** database migrations SHALL remain governed by the forward-fix migration policy.
