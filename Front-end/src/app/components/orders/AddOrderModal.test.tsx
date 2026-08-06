@@ -63,7 +63,8 @@ describe("AddOrderModal customer creation", () => {
       email: "fresh@example.test",
       type: "retail",
     }));
-    expect(screen.getByText("Fresh Customer")).toBeInTheDocument();
+    const selectedCustomer = screen.getByRole("button", { name: /Fresh Customer.*fresh@example\.test/i });
+    expect(selectedCustomer).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /continue/i })).toBeEnabled();
     expect(screen.getByText("New Order")).toBeInTheDocument();
   });
