@@ -23,7 +23,7 @@ describe("InventoryAdjustModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Record entry" }));
     expect(screen.getByRole("alert")).toHaveTextContent("physical count");
     fireEvent.click(screen.getByRole("radio", { name: "Relative adjustment" }));
-    fireEvent.change(screen.getByLabelText("Relative adjustment"), { target: { value: "-500" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Relative adjustment" }), { target: { value: "-500" } });
     fireEvent.click(screen.getByRole("button", { name: "Record entry" }));
     await waitFor(() => expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({ type: "relative-adjustment", quantityChange: -500 })));
   });
