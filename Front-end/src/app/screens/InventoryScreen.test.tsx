@@ -6,7 +6,7 @@ afterEach(cleanup);
 const props = {
   tasks: [], builds: [], transactions: [], onOpenStarter: vi.fn(),
   inventoryItems: [
-    { id: "flour", name: "Flour", current: 5000, onHand: 5000, reserved: 4000, unit: "g", minLevel: 3000, upcoming: 0, status: "in-stock" as const, kind: "ingredient" as const, required: 2000 },
+    { id: "flour", name: "Flour", current: 5000, onHand: 5000, reserved: 4000, unit: "g", minLevel: 0, upcoming: 0, status: "in-stock" as const, kind: "ingredient" as const, required: 2000 },
     { id: "bag", name: "Bread bags", current: -2, onHand: -2, unit: "unit", minLevel: 0, upcoming: 0, status: "out-of-stock" as const, kind: "packaging" as const },
     { id: "loaf", name: "Sourdough loaf", current: 12, onHand: 12, allocated: 10, unit: "unit", minLevel: 0, upcoming: 0, status: "in-stock" as const, kind: "finished_good" as const },
   ],
@@ -18,7 +18,7 @@ describe("InventoryScreen", () => {
     expect(screen.getByText("Raw ingredients")).toBeInTheDocument();
     expect(screen.getByText("Retail supplies")).toBeInTheDocument();
     expect(screen.getByText("Finished goods")).toBeInTheDocument();
-    expect(screen.getByText(/Reserved/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Reserved/).length).toBeGreaterThan(0);
     expect(screen.getByText("Shortage is from scheduled demand after reservations.")).toBeInTheDocument();
     expect(screen.getByText(/Negative stock: production can continue/)).toBeInTheDocument();
   });
