@@ -20,7 +20,10 @@ describe("production planning", () => {
   it("flags tasks scheduled after pickup without moving them", () => {
     const earlyPickup = generatePlan({ ...order, pickupTime: "09:00" });
     expect(earlyPickup.warnings.length).toBeGreaterThan(0);
-    expect(earlyPickup.tasks.some(task => task.scheduledAt.endsWith("17:00:00.000Z"))).toBe(true);
+    const packageTask = earlyPickup.tasks.find(task => task.flowStepId === "package" && task.product === "Sourdough Loaf");
+    expect(packageTask).toBeDefined();
+    expect(new Date(packageTask!.scheduledAt).getHours()).toBe(13);
+    expect(earlyPickup.warnings.some(warning => warning.taskId === packageTask!.id)).toBe(true);
   });
   it("does not duplicate unchanged future tasks during regeneration", () => {
     const existing = generatePlan(order).tasks;
