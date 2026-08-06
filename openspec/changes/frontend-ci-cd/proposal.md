@@ -13,24 +13,28 @@ Database migrations, Edge Functions, and frontend publishing are currently coupl
 ## Goals
 
 - Make frontend CI deterministic and package-manager-consistent.
-- Gate frontend merges on typecheck, lint, unit tests, production build, and bundle-budget validation.
-- Add browser-level smoke/E2E verification with Playwright at the appropriate CI boundary.
-- Publish a real staging frontend after eligible changes reach `develop`.
-- Publish a real production frontend after eligible changes reach `main` and production approval requirements are satisfied.
+- Gate frontend merges on typecheck, lint, unit tests, production build, bundle-budget validation, and browser smoke/E2E coverage.
+- Publish the development/staging frontend from `develop` to GitHub Pages.
 - Keep frontend deployment logically separate from Supabase database migrations and Edge Function deployment.
-- Use GitHub Environments for staging/production configuration and deployment history.
 - Ensure only client-safe `VITE_*` values are exposed to the browser build.
-- Make deployments observable and fail loudly when publishing or post-deploy smoke checks fail.
+- Support BrowserRouter deep links on GitHub Pages with a static-host SPA fallback.
+- Make deployments observable and fail visibly when publishing or fallback verification fails.
+
+## Current Execution Boundary
+
+This execution selects **GitHub Pages** as the development/staging frontend host.
+
+- `develop` publishes `Front-end/dist` to GitHub Pages.
+- The Vite deployment base is `/Bakery-app/` for GitHub Pages builds.
+- BrowserRouter uses Vite's runtime base URL.
+- `404.html` redirects unknown static paths back through the SPA entry point so routes such as `/Bakery-app/orders` survive browser refreshes.
+- `main` does **not** publish the frontend yet. Production frontend hosting remains intentionally deferred until a production provider/domain is selected.
+- Existing production Supabase backup/migration/Edge Function automation remains separate and does not pretend to publish the frontend.
 
 ## Non-Goals
 
 - No database schema or RLS changes.
-- No redesign of the application runtime.
 - No migration of Supabase projects.
+- No production frontend hosting selection in this execution.
 - No introduction of server-side secrets into the Vite bundle.
 - No automatic production rollback of database migrations.
-- No deployment implementation during `/orch-plan`.
-
-## Hosting Boundary
-
-The frontend is a static Vite application whose deployable output is `Front-end/dist`. The implementation SHALL isolate provider-specific publishing into the deployment step so the CI contract remains provider-independent. Before `/orch-execute`, the owner may select the static hosting provider; if no existing provider is configured, execution should use one explicit provider rather than leaving another placeholder deployment command.
