@@ -1,26 +1,25 @@
 # Tasks: Frontend CI/CD
 
-- [ ] 1.1 Confirm/select the frontend static hosting provider and record required project/site identifiers without committing credentials.
-- [ ] 1.2 Confirm GitHub `staging` and `production` Environments and required production approval policy.
-- [ ] 2.1 Standardize frontend automation on the package manager declared by `Front-end/package.json` (`pnpm@11.9.0`) with a frozen lockfile.
-- [ ] 2.2 Refactor CI so frontend and Supabase/database verification are distinct jobs with clear failure ownership.
-- [ ] 2.3 Make frontend CI run typecheck, lint, unit tests, production build, and bundle-budget validation.
-- [ ] 2.4 Add/enable appropriate Playwright smoke/E2E verification and preserve reports/artifacts on failure.
-- [ ] 2.5 Keep PR CI free of production deployment credentials and private server secrets.
-- [ ] 3.1 Create a real staging frontend deployment workflow for `develop` that builds with staging `VITE_*` configuration and publishes `Front-end/dist`.
-- [ ] 3.2 Add staging deployment concurrency and a post-deploy smoke check against the deployed staging URL.
-- [ ] 3.3 Remove the placeholder frontend deployment responsibility from the existing Supabase staging workflow while preserving migration/Edge Function behavior.
-- [ ] 4.1 Create a real production frontend deployment workflow for `main` using the protected `production` GitHub Environment.
-- [ ] 4.2 Add production deployment concurrency, deployment metadata/source SHA reporting, and post-deploy smoke verification.
-- [ ] 4.3 Remove the placeholder frontend deployment responsibility from the existing Supabase production workflow while preserving backup/migration/Edge Function behavior.
-- [ ] 4.4 Document the frontend rollback procedure as redeploying a last-known-good revision independently of database rollback.
-- [ ] 5.1 Update the deployment playbook to match the implemented frontend CI/CD workflow, provider configuration, branch triggers, environment variables, and rollback path.
-- [ ] 5.2 Verify no private/server-only secrets use the `VITE_` prefix or enter the browser bundle.
+- [x] 1.1 Select GitHub Pages as the development/staging frontend static host and record that production frontend hosting remains deferred.
+- [ ] 1.2 Confirm repository Pages source is set to GitHub Actions and create/confirm the GitHub `development` environment with staging browser-safe Supabase values.
+- [x] 2.1 Standardize frontend automation on the package manager declared by `Front-end/package.json` (`pnpm@11.9.0`) with a frozen lockfile.
+- [x] 2.2 Refactor CI so frontend and Supabase/database verification are distinct jobs with clear failure ownership.
+- [x] 2.3 Make frontend CI run typecheck, lint, unit tests, production build, and bundle-budget validation.
+- [x] 2.4 Run the Playwright Chromium desktop project in CI and preserve the Playwright report when the job fails.
+- [x] 2.5 Keep PR CI free of production deployment credentials and private server secrets.
+- [x] 3.1 Create a real GitHub Pages frontend deployment workflow for `develop` that builds with staging client-safe configuration and publishes `Front-end/dist`.
+- [x] 3.2 Add deployment concurrency, Pages deployment URL reporting, root smoke verification, and SPA-fallback verification.
+- [x] 3.3 Remove frontend publication responsibility from the existing Supabase staging workflow while preserving migration/Edge Function behavior.
+- [x] 3.4 Configure Vite and BrowserRouter for the `/Bakery-app/` Pages base path and add a static `404.html` SPA deep-link fallback.
+- [x] 4.1 Remove the placeholder frontend publication step from the production Supabase workflow.
+- [x] 4.2 Keep automatic production frontend deployment disabled until a production provider/domain is selected in a future approved change.
+- [x] 4.3 Document frontend rollback as revision-based redeployment independent of database rollback.
+- [x] 5.1 Add durable frontend CI/CD documentation covering GitHub Pages, branch triggers, browser-safe variables, routing fallback, GitHub setup, and rollback.
+- [x] 5.2 Verify the frontend environment example and workflows expose only browser-safe Supabase URL/publishable-key values to Vite.
 - [ ] 6.1 Run/observe a PR CI execution and confirm every required frontend quality gate passes.
-- [ ] 6.2 Deploy to staging and manually verify root navigation plus a safe SPA deep-link route.
-- [ ] 6.3 Verify a failed smoke test causes the staging/production frontend deployment job to fail visibly.
-- [ ] 6.4 Perform an approved production deployment and verify the deployed revision/URL corresponds to the intended `main` commit.
+- [ ] 6.2 After GitHub Pages repository/environment setup, deploy `develop` and manually verify root navigation plus `/Bakery-app/orders` refresh behavior.
+- [ ] 6.3 Verify a failed Pages publish/fallback smoke test causes the development frontend deployment job to fail visibly.
 
 ## Documentation Impact
 
-`docs/deployment/deployment-playbook.md` must be updated during execution because the current document claims automated frontend deployment while the existing workflows only contain placeholder publish commands.
+`docs/deployment/frontend-ci-cd.md` records the implemented frontend-specific delivery contract. The broader deployment playbook remains authoritative for Supabase/database release governance; production frontend hosting is explicitly deferred rather than represented by a placeholder deployment.
