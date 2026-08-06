@@ -79,3 +79,5 @@ jobs:
           DEEP_LINK_BODY="$(curl --silent --show-error --location --retry 5 --retry-delay 3 "${PAGE_URL%/}/orders")"
           printf '%s' "$DEEP_LINK_BODY" | grep -q "gh-pages-spa-redirect"
           echo "Deployed $GITHUB_SHA to $PAGE_URL"
+
+# Fresh-run marker: 2026-08-06T16:30Z
