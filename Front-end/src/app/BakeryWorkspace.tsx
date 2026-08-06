@@ -183,7 +183,7 @@ function BakeryWorkspaceInner({
     }
 
     const id = `local-${Date.now()}`;
-    setOrders(current => current.some(order => order.id === id) ? current : [...current, { id, customer: customer.name, items, pickup: new Date(`${pickupDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }), pickupTime, status: "confirmed", total: items.reduce((sum, item) => sum + item.qty * item.price, 0), paid, paymentStatus: paid <= 0 ? "unpaid" : paid >= items.reduce((sum, item) => sum + item.qty * item.price, 0) ? "paid" : "partially-paid", notes }]);
+    setOrders(current => current.some(order => order.id === id) ? current : [...current, { id, customer: customer.name, items, pickup: new Date(`${pickupDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }), pickupTime, status: "confirmed", total: items.reduce((sum, item) => sum + item.qty * item.price, 0), paid, paymentStatus: paid <= 0 ? "unpaid" : paid >= items.reduce((sum, item) => sum + item.qty * item.price, 0) ? "paid" : "partially-paid", notes, createdAt: new Date().toISOString() }]);
     setProductionTasks(current => current.some(task => task.orderId === id) ? current : [...current, ...planTasks({ id, pickupDate, pickupTime, items })]);
 
     void domainContext.commands.createOrder({
@@ -228,6 +228,7 @@ function BakeryWorkspaceInner({
         paid: updated.paid,
         paymentStatus: updated.paymentStatus,
         notes: updated.notes,
+        createdAt: updated.createdAt,
       };
     }
 
@@ -297,6 +298,7 @@ function BakeryWorkspaceInner({
         paid: order.paid,
         paymentStatus: order.paymentStatus,
         notes: order.notes,
+        createdAt: order.createdAt,
       }));
     }
     if (!snapshot?.ordersById) return orders;
