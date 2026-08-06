@@ -77,11 +77,12 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: Smoke test deployed root and SPA route
+      - name: Smoke test deployed root and SPA fallback
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
           set -euo pipefail
-          curl --fail --location --retry 5 --retry-delay 3 "$PAGE_URL"
-          curl --fail --location --retry 5 --retry-delay 3 "${PAGE_URL%/}/orders" >/dev/null
+          curl --fail --location --retry 5 --retry-delay 3 "$PAGE_URL" >/dev/null
+          DEEP_LINK_BODY="$(curl --silent --show-error --location --retry 5 --retry-delay 3 "${PAGE_URL%/}/orders")"
+          printf '%s' "$DEEP_LINK_BODY" | grep -q "gh-pages-spa-redirect"
           echo "Deployed $GITHUB_SHA to $PAGE_URL"
