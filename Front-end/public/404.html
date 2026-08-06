@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>Bakery App</title>
+    <script>
+      (function () {
+        var base = "/Bakery-app";
+        var path = window.location.pathname.startsWith(base)
+          ? window.location.pathname.slice(base.length)
+          : window.location.pathname;
+        var target = path + window.location.search + window.location.hash;
+        sessionStorage.setItem("gh-pages-spa-redirect", target || "/");
+        window.location.replace(base + "/");
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>

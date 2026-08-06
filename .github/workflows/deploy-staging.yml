@@ -1,25 +1,23 @@
-name: Deploy to Staging
+name: Deploy Supabase to Staging
 
 on:
   push:
     branches:
       - develop
+    paths:
+      - "supabase/**"
+      - ".github/workflows/deploy-staging.yml"
   workflow_dispatch:
 
 jobs:
   deploy-staging:
-    name: Deploy to Staging Environment
+    name: Deploy Supabase to Staging Environment
     runs-on: ubuntu-latest
     environment: staging
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup Node.js v22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -42,18 +40,3 @@ jobs:
         run: supabase functions deploy --all
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Install Frontend Dependencies
-        working-directory: Front-end
-        run: npm ci || npm install
-
-      - name: Build Staging Frontend
-        working-directory: Front-end
-        run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
-
-      - name: Deploy Frontend Application
-        working-directory: Front-end
-        run: echo "Deploying frontend artifact to Staging environment..."
