@@ -124,7 +124,7 @@ export function ProductionTimeBlock({
           onClick={() => setDetailsOpen(open => !open)}
           className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-[#7A3E24] hover:text-[#934E2E]"
         >
-          <ClipboardList size={14} /> {detailsOpen ? "Hide task details" : "Show task details"}
+          <ClipboardList size={14} /> {detailsOpen ? "Hide task details" : "Actions & notes"}
           {detailsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
