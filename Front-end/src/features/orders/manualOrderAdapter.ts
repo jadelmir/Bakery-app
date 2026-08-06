@@ -51,6 +51,7 @@ interface OrderRow {
   amount_paid_cents: DatabaseScalar;
   payment_status: DatabaseScalar;
   notes: DatabaseScalar;
+  created_at: DatabaseScalar;
 }
 
 interface OrderItemRow {
@@ -139,6 +140,7 @@ export interface ManualOrderSummary {
   paid: number;
   paymentStatus: "unpaid" | "partially-paid" | "paid" | "refunded";
   notes?: string;
+  createdAt: string;
   items: ManualOrderItem[];
 }
 
@@ -213,7 +215,7 @@ function mapOrder(row: OrderRow, itemsByOrder: ReadonlyMap<string, ManualOrderIt
     id: text(row.id), customerId: text(row.customer_id), pickupDate: text(row.pickup_date), pickupTime: text(row.pickup_time),
     status: (text(row.status) || "confirmed") as ManualOrderSummary["status"], total: centsToDollars(row.total_cents),
     paid: centsToDollars(row.amount_paid_cents), paymentStatus: (text(row.payment_status) || "unpaid") as ManualOrderSummary["paymentStatus"],
-    notes: text(row.notes) || undefined, items: itemsByOrder.get(text(row.id)) ?? [],
+    notes: text(row.notes) || undefined, createdAt: text(row.created_at), items: itemsByOrder.get(text(row.id)) ?? [],
   };
 }
 
@@ -229,7 +231,7 @@ export function createManualOrderService(client: ManualOrderClient = getSupabase
       const [customerRows, recipeRows, orderRows, taskRows] = await Promise.all([
         readRows(client.from("customers").select("id,name,email,phone,address,notes").eq("bakery_id", bakeryId), "customers"),
         readRows(client.from("recipes").select("id,name,yield,selling_price_cents").eq("bakery_id", bakeryId), "recipes"),
-        readRows(client.from("orders").select("id,customer_id,pickup_date,pickup_time,status,total_cents,amount_paid_cents,payment_status,notes").eq("bakery_id", bakeryId).order("pickup_date", { ascending: true }), "orders"),
+        readRows(client.from("orders").select("id,customer_id,pickup_date,pickup_time,status,total_cents,amount_paid_cents,payment_status,notes,created_at").eq("bakery_id", bakeryId).order("created_at", { ascending: false }), "orders"),
         readRows(client.from("production_tasks").select("id,order_id,recipe_id,flow_id,flow_step_id,title,category,status,quantity,scheduled_at,duration_minutes,urgency,delay_minutes,skip_reason").eq("bakery_id", bakeryId).order("scheduled_at", { ascending: true }), "production tasks"),
       ]);
 
