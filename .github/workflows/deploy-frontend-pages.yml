@@ -80,4 +80,4 @@ jobs:
           printf '%s' "$DEEP_LINK_BODY" | grep -q "gh-pages-spa-redirect"
           echo "Deployed $GITHUB_SHA to $PAGE_URL"
 
-# Fresh-run marker: 2026-08-06T16:30Z
+# Rebuild marker: 2026-08-07T00:35Z
