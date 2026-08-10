@@ -122,6 +122,10 @@ function mapSession(
   return { user: { id: session.user.id, email: session.user.email } };
 }
 
+function getEmailRedirectTo(): string {
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
+}
+
 export function createSupabaseAuthAdapter(
   client: SupabaseClient<Database> = getSupabaseBrowserClient(),
 ): AuthAdapter {
@@ -140,6 +144,9 @@ export function createSupabaseAuthAdapter(
       const { data, error } = await client.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
+        options: {
+          emailRedirectTo: getEmailRedirectTo(),
+        },
       });
       if (error) throw new Error(error.message);
       const session = mapSession(data.session);
