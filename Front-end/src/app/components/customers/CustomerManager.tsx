@@ -42,63 +42,7 @@ export interface CustomerManagerProps {
   onDeleteCustomer?: (id: string) => void;
 }
 
-const DEFAULT_CUSTOMERS: readonly DomainCustomerItem[] = [
-  {
-    id: "cust-1",
-    name: "Golden Grain Cafe",
-    email: "orders@goldengraincafe.com",
-    phone: "(555) 234-5678",
-    type: "wholesale",
-    address: "123 Market St, Suite 4, San Francisco, CA 94105",
-    notes: "Weekly sourdough order on Tuesday & Friday mornings. Net 30 terms.",
-    totalOrders: 28,
-    totalSpent: 3450.00,
-  },
-  {
-    id: "cust-2",
-    name: "Sarah Jenkins",
-    email: "sarah.j@example.com",
-    phone: "(555) 987-6543",
-    type: "retail",
-    address: "742 Evergreen Terrace, Springfield, OR 97477",
-    notes: "Prefers gluten-free pastries and sesame loafs.",
-    totalOrders: 14,
-    totalSpent: 285.50,
-  },
-  {
-    id: "cust-3",
-    name: "Artisan Coffee House",
-    email: "manager@artisancoffee.io",
-    phone: "(555) 456-7890",
-    type: "wholesale",
-    address: "880 Broadway Ave, New York, NY 10003",
-    notes: "Requires organic vegan croissants for morning coffee crowd.",
-    totalOrders: 42,
-    totalSpent: 7890.00,
-  },
-  {
-    id: "cust-4",
-    name: "Michael Chen",
-    email: "m.chen@example.org",
-    phone: "(555) 321-7654",
-    type: "retail",
-    address: "1540 Pine Street, Apt 3B, Seattle, WA 98101",
-    notes: "Weekend sourdough loaf subscriber.",
-    totalOrders: 6,
-    totalSpent: 96.00,
-  },
-  {
-    id: "cust-5",
-    name: "Bay Area Bakery Co-op",
-    email: "coop@bayareabakery.com",
-    phone: "(555) 888-1212",
-    type: "wholesale",
-    address: "450 Industrial Pkwy, Oakland, CA 94607",
-    notes: "Bulk flour and pre-ferment dough supplier customer.",
-    totalOrders: 19,
-    totalSpent: 5120.75,
-  },
-];
+const DEFAULT_CUSTOMERS: readonly DomainCustomerItem[] = [];
 
 export function CustomerManager({
   customers: externalCustomers,
