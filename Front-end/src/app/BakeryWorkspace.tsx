@@ -32,6 +32,9 @@ import type { ManualOrderService, ManualOrderSnapshot } from "../lib/supabase/ma
 import { createSupabaseCustomerAdapter } from "../lib/supabase/customerAdapter";
 import type { OrderStatusTransition } from "./screens/OrdersScreen";
 
+const USE_SYNTHETIC_FIXTURES =
+  import.meta.env.MODE === "test" || import.meta.env.VITE_USE_MOCK_BACKEND === "true";
+
 const LazyHomeScreen = lazy(() =>
   import("./screens/HomeScreen").then(module => ({ default: module.HomeScreen })),
 );
@@ -125,8 +128,18 @@ function BakeryWorkspaceInner({
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [manualOrderSnapshot, setManualOrderSnapshot] = useState<ManualOrderSnapshot | null>(null);
   const [manualOrderLoadError, setManualOrderLoadError] = useState("");
-  const [orders, setOrders] = useState<Order[]>(ORDERS);
-  const [productionTasks, setProductionTasks] = useState<Task[]>(() => planTasks({ id: "#025", pickupDate: "2026-07-31", pickupTime: "10:00", items: ORDERS[1].items.map((item, index) => ({ id: `${index}`, product: item.product, qty: item.qty })) }));
+  const [orders, setOrders] = useState<Order[]>(() => USE_SYNTHETIC_FIXTURES ? ORDERS : []);
+  const [productionTasks, setProductionTasks] = useState<Task[]>(() => {
+    if (!USE_SYNTHETIC_FIXTURES) return [];
+    const seedOrder = ORDERS[1];
+    if (!seedOrder) return [];
+    return planTasks({
+      id: seedOrder.id,
+      pickupDate: "2026-07-31",
+      pickupTime: "10:00",
+      items: seedOrder.items.map((item, index) => ({ id: `${index}`, product: item.product, qty: item.qty })),
+    });
+  });
   const [starterProfile, setStarterProfile] = useState<StarterProfile>(DEFAULT_STARTER_PROFILE);
   const [starterOverrides, setStarterOverrides] = useState<Record<string, StarterBuildOverride>>({});
   const [deductionTrigger] = useState<DeductionTrigger>("task-completion");
@@ -137,7 +150,11 @@ function BakeryWorkspaceInner({
     setManualOrderLoadError("");
     void manualOrderService.loadSnapshot(activeMembership.bakeryId)
       .then(next => { if (mounted) setManualOrderSnapshot(next); })
-      .catch(error => { if (mounted) setManualOrderLoadError(error instanceof Error ? error.message : "Could not load persisted orders."); });
+      .catch(error => {
+        if (!mounted) return;
+        setManualOrderSnapshot(null);
+        setManualOrderLoadError(error instanceof Error ? error.message : "Could not load persisted orders.");
+      });
     return () => { mounted = false; };
   }, [activeMembership?.bakeryId, manualOrderService]);
   const starterBuilds = useMemo(() => buildStarterPlans(productionTasks as unknown as ProductionTask[], starterProfile, starterProfile.defaultRatio, starterOverrides), [productionTasks, starterProfile, starterOverrides]);
@@ -309,14 +326,14 @@ function BakeryWorkspaceInner({
       const itemIds = o.itemIds || [];
       const orderItems = itemIds.map(id => {
         const item = snapshot.orderItemsById?.[id];
-        return item ? { product: item.product, qty: item.quantity, price: item.unitPrice } : { product: "Product", qty: 1, price: 14 };
+        return item ? { product: item.product, qty: item.quantity, price: item.unitPrice } : { product: "Product", qty: 1, price: 0 };
       });
       return {
         id: o.id.length > 8 ? `#${o.id.slice(-3)}` : o.id,
         customer: customerName,
-        items: orderItems.length > 0 ? orderItems : [{ product: "Sourdough Loaf", qty: 2, price: 14 }],
+        items: orderItems,
         pickup: o.pickupDate,
-        pickupTime: o.pickupTime || "10:00 AM",
+        pickupTime: o.pickupTime || "",
         status: o.status,
         total: o.total,
         paid: o.paid,
@@ -348,6 +365,16 @@ function BakeryWorkspaceInner({
   }, [manualOrderSnapshot, productionTasks]);
 
   const domainRecipes = useMemo(() => {
+    if (manualOrderSnapshot) {
+      return manualOrderSnapshot.recipes.map(recipe => ({
+        id: recipe.id,
+        name: recipe.name,
+        yield: recipe.yield,
+        batchCost: 0,
+        sellingPrice: recipe.sellingPrice,
+        ingredients: [],
+      }));
+    }
     if (!snapshot?.recipesById) return undefined;
     return Object.values(snapshot.recipesById).map(r => ({
       id: r.id,
@@ -359,7 +386,7 @@ function BakeryWorkspaceInner({
       archived: r.archived,
       ingredients: r.ingredients || [],
     }));
-  }, [snapshot]);
+  }, [manualOrderSnapshot, snapshot]);
 
   const domainIngredients = useMemo(() => {
     if (!snapshot?.inventoryById) return undefined;
@@ -375,7 +402,7 @@ function BakeryWorkspaceInner({
       status: i.status,
       packageQuantity: i.packageQuantity,
       packagePrice: i.packagePrice,
-      unitCost: i.unitCost || (i.packagePrice && i.packageQuantity ? i.packagePrice / i.packageQuantity : 0.002),
+      unitCost: i.unitCost || (i.packagePrice && i.packageQuantity ? i.packagePrice / i.packageQuantity : 0),
     }));
   }, [snapshot]);
 
@@ -613,8 +640,27 @@ export function BakeryWorkspace(props: {
   authAdapter?: AuthAdapter;
   manualOrderService?: ManualOrderService;
 }) {
+  const bakeryId = props.activeMembership?.bakeryId ?? "bakery-north";
   const localBakeryAdapter = useMemo(() => {
-    const localAdapter = createLocalBakeryAdapter();
+    const localAdapter = createLocalBakeryAdapter(
+      props.manualOrderService
+        ? {
+            snapshots: {
+              [bakeryId]: {
+                bakeryId,
+                customersById: {},
+                inventoryById: {},
+                recipesById: {},
+                flowsById: {},
+                ordersById: {},
+                orderItemsById: {},
+                tasksById: {},
+                inventoryTransactionsById: {},
+              },
+            },
+          }
+        : undefined,
+    );
     if (!props.manualOrderService) return localAdapter;
 
     const customerAdapter = createSupabaseCustomerAdapter();
@@ -622,7 +668,7 @@ export function BakeryWorkspace(props: {
       ...localAdapter,
       source: {
         durability: "persisted" as const,
-        description: "Authenticated customer records are persisted in Supabase; unsupported bakery-domain records remain session-local.",
+        description: "Authenticated persisted entities come from Supabase; unsupported domains start empty rather than using prototype records.",
       },
       async loadSnapshot(scope: { bakeryId: string }) {
         const localSnapshot = await localAdapter.loadSnapshot(scope);
@@ -640,8 +686,7 @@ export function BakeryWorkspace(props: {
       createCustomer: customerAdapter.createCustomer,
       updateCustomer: customerAdapter.updateCustomer,
     };
-  }, [props.manualOrderService]);
-  const bakeryId = props.activeMembership?.bakeryId ?? "bakery-north";
+  }, [bakeryId, props.manualOrderService]);
 
   return (
     <BakeryDomainProvider adapter={localBakeryAdapter} bakeryId={bakeryId}>
