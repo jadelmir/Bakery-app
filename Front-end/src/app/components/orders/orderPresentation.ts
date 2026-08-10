@@ -117,6 +117,25 @@ export function sortOrdersByPickup(orders: readonly Order[], now = new Date()): 
     .map(({ order }) => order);
 }
 
+function createdAtTimestamp(order: Pick<Order, "createdAt">): number | null {
+  if (!order.createdAt) return null;
+  const timestamp = Date.parse(order.createdAt);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+/** Default queue ordering: most recently created orders first. Missing timestamps keep their input order. */
+export function sortOrdersByNewest(orders: readonly Order[]): Order[] {
+  return orders
+    .map((order, index) => ({ order, index, createdAt: createdAtTimestamp(order) }))
+    .sort((left, right) => {
+      if (left.createdAt !== null && right.createdAt !== null) return right.createdAt - left.createdAt || left.index - right.index;
+      if (left.createdAt !== null) return -1;
+      if (right.createdAt !== null) return 1;
+      return left.index - right.index;
+    })
+    .map(({ order }) => order);
+}
+
 function normalized(value: string) {
   return value.trim().toLocaleLowerCase();
 }
@@ -152,7 +171,7 @@ export function selectPresentedOrders(orders: readonly Order[], filters: OrderPr
     return true;
   });
 
-  return sortOrdersByPickup(filtered, now);
+  return sortOrdersByNewest(filtered);
 }
 
 export function localDateKey(date: Date): string {

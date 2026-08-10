@@ -23,6 +23,7 @@ export interface Order {
   items: { product: string; qty: number; price: number }[];
   pickup: string; pickupTime: string; status: OrderStatus;
   total: number; paid: number; paymentStatus: PaymentStatus; notes?: string;
+  createdAt?: string;
 }
 export interface Recipe {
   id: string; name: string; yield: string;
