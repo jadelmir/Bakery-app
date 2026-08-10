@@ -372,6 +372,7 @@ function BakeryWorkspaceInner({
         yield: recipe.yield,
         batchCost: 0,
         sellingPrice: recipe.sellingPrice,
+        flowId: "",
         ingredients: [],
       }));
     }
