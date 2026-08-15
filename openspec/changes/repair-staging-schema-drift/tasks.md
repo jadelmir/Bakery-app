@@ -4,10 +4,10 @@
 - [ ] 1.2 Capture the actual staging `public`/`private` schema objects required by `20260729140126_add_multi_store_workspaces.sql` and downstream migrations.
 - [ ] 1.3 Document the exact mismatch: which migration versions are marked applied versus which expected objects are missing.
 
-- [ ] 2.1 Add a new forward-only timestamped repair migration; do not edit historical migration files.
-- [ ] 2.2 Guard creation/repair of missing `profiles`, `bakeries`, `bakery_memberships`, and `bakery_invitations` objects without deleting existing data.
-- [ ] 2.3 Guard repair of required functions, triggers, indexes, foreign keys, RLS enablement, and policies needed by the current workspace contract.
-- [ ] 2.4 Make conflicting existing schema shapes fail with an actionable error instead of silently replacing or truncating data.
+- [x] 2.1 Add a new forward-only timestamped repair migration; do not edit historical migration files.
+- [x] 2.2 Guard creation/repair of missing `profiles`, `bakeries`, `bakery_memberships`, and `bakery_invitations` objects without deleting existing data.
+- [x] 2.3 Guard repair of required functions, triggers, indexes, foreign keys, RLS enablement, and policies needed by the current workspace contract.
+- [x] 2.4 Make conflicting existing schema shapes fail with an actionable error instead of silently replacing or truncating data.
 - [ ] 2.5 Use Supabase migration-history repair commands only if the captured evidence shows metadata itself must be corrected; record before/after history.
 
 - [ ] 3.1 Run the full migration set against a clean local Supabase database and verify database lint succeeds.
