@@ -59,7 +59,7 @@ jobs:
           supabase db dump --linked --schema public --file /tmp/staging-schema.sql
           required_tables=(profiles bakeries bakery_memberships customers orders order_items recipes)
           for table in "${required_tables[@]}"; do
-            if ! grep -Eq "CREATE TABLE( IF NOT EXISTS)? public\\.${table}([[:space:]]|\\()" /tmp/staging-schema.sql; then
+            if ! grep -Eiq "CREATE TABLE( IF NOT EXISTS)? public\\.${table}([[:space:]]|\\()" /tmp/staging-schema.sql; then
               echo "Missing required staging table: public.${table}" >&2
               exit 1
             fi
