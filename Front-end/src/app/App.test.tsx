@@ -69,6 +69,31 @@ describe("Bakery frontend prototype", () => {
     expect(screen.getAllByText("Recipes").length).toBeGreaterThan(0);
   });
 
+  it("preserves an invitation token and reloads memberships after acceptance", async () => {
+    const auth = createMockAuthAdapter(0);
+    await auth.signIn({ email: "invitee@example.com", password: "password1" });
+    const workspaces = createMockWorkspaceAdapter([]);
+    const memberships = [{
+      id: "accepted-membership",
+      bakeryId: "invited-bakery",
+      bakeryName: "Invited Bakery",
+      role: "staff" as const,
+      isDefault: false,
+    }];
+    vi.spyOn(workspaces, "listMemberships")
+      .mockResolvedValueOnce([])
+      .mockResolvedValue(memberships);
+    window.history.replaceState({}, "", "/?invitation=opaque-token");
+
+    renderWithRouter(<App authAdapter={auth} workspaceAdapter={workspaces} />);
+
+    expect(await screen.findByRole("heading", { name: "Join this store?" })).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Accept invitation" }));
+    expect((await screen.findByRole("status")).textContent).toContain("Invitation accepted");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("heading", { name: "Select a bakery" })).toBeTruthy();
+  });
+
   it("opens the order workflow from the accessible mobile action", () => {
     renderWithRouter(<BakeryWorkspace />, "/home");
 
@@ -81,13 +106,11 @@ describe("Bakery frontend prototype", () => {
   it("uses the aligned catalog and describes confirmation as an order save", async () => {
     renderWithRouter(<BakeryWorkspace />, "/home");
 
-    expect((await screen.findAllByText("Sourdough Loaf")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Focaccia").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("In Production").length).toBeGreaterThan(0);
-
     fireEvent.click(screen.getByRole("button", { name: "Add order" }));
     fireEvent.click(screen.getByRole("button", { name: /Sarah Mitchell/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect((await screen.findAllByText("Sourdough Loaf")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Focaccia").length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
@@ -119,6 +142,7 @@ describe("Bakery frontend prototype", () => {
 
     expect(screen.getByLabelText("Select production day")).toBeTruthy();
     fireEvent.click(screen.getAllByRole("button", { name: "Actions & notes" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Toggle details" })[0]);
     const note = screen.getAllByPlaceholderText("Add a production note")[0];
     fireEvent.change(note, { target: { value: "Use the blue tray" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Save note" })[0]);
@@ -136,9 +160,13 @@ describe("Bakery frontend prototype", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Production" })[0]);
     await screen.findByRole("heading", { name: "Production Workspace" });
     fireEvent.click(await screen.findByRole("button", { name: "Flow Builder" }));
+    fireEvent.click(screen.getByRole("button", { name: /Standard Sourdough Loaf/ }));
     expect(screen.getByDisplayValue("Standard Sourdough Loaf")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add flow" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Import from existing flow" }), { target: { value: "flow-sourdough" } });
     expect(screen.getByDisplayValue("Standard Sourdough Loaf Copy")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
     fireEvent.click(screen.getByRole("button", { name: "tomorrow" }));
     expect(screen.getByText(/Bakery timezone/)).toBeTruthy();
@@ -157,19 +185,16 @@ describe("Bakery frontend prototype", () => {
     expect(screen.getByLabelText("Notifications")).toBeTruthy();
   });
 
-  it("shows calculated inventory requirements, shopping list, and starter overrides", async () => {
+  it("shows calculated inventory requirements and shopping list", async () => {
     renderWithRouter(<BakeryWorkspace />, "/home");
 
     fireEvent.click(screen.getAllByRole("button", { name: /Inventory/ })[0]);
     expect(await screen.findByRole("heading", { name: /Inventory/ })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Shopping list" })).toBeTruthy();
-    expect(screen.getAllByText(/including starter inputs/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Required/).length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText("Inventory order filter"), { target: { value: "#025" } });
     expect(screen.getByDisplayValue("#025")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Starter/ }));
-    expect(await screen.findByRole("heading", { name: "Starter Manager" })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Override starter flour"), { target: { value: "250" } });
-    expect(screen.getByDisplayValue("250")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Shopping list/ }));
+    expect(await screen.findByRole("heading", { name: "Shopping list" })).toBeTruthy();
   });
 });
 
@@ -195,7 +220,6 @@ describe("Authenticated workspace routes", () => {
 
   it.each([
     ["/storefront", "Online Storefront"],
-    ["/inventory/starter", "Starter Manager"],
     ["/settings/account", "Account & Profile"],
   ])("renders the utility/configuration route %s", async (path, heading) => {
     const authAdapter = createMockAuthAdapter(0);

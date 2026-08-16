@@ -76,9 +76,7 @@ const METHOD_ICONS: Record<PaymentMethodType, React.ElementType> = {
 };
 
 export function PaymentSettings({ paymentMethods, onSave, onBack }: PaymentSettingsProps) {
-  const [methods, setMethods] = useState<DomainPaymentMethod[]>(() =>
-    paymentMethods && paymentMethods.length > 0 ? [...paymentMethods] : [...DEFAULT_METHODS]
-  );
+  const [methods, setMethods] = useState<DomainPaymentMethod[]>(() => paymentMethods && paymentMethods.length > 0 ? [...paymentMethods] : [...DEFAULT_METHODS]);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleToggle = (id: string) => {

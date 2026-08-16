@@ -11,6 +11,15 @@ export type TaskStatus = Exclude<ProductionStatus, "overdue">;
 export type OrderStatus = "draft" | "confirmed" | "in-production" | "ready" | "completed" | "cancelled";
 export type PaymentStatus = "unpaid" | "partially-paid" | "paid" | "refunded";
 export type InventoryStatus = "in-stock" | "low" | "insufficient" | "out-of-stock";
+export type InventoryItemKind = "ingredient" | "packaging" | "finished_good";
+export type InventoryBaseUnit = "g" | "ml" | "unit";
+export type InventoryTransactionType =
+  | "purchase"
+  | "manual_adjustment"
+  | "production_usage"
+  | "production_output"
+  | "reservation"
+  | "reservation_fulfillment";
 
 export type CustomerType = "wholesale" | "retail";
 
@@ -33,11 +42,17 @@ export interface DomainInventoryItem {
   readonly unit: string;
   readonly onHand: number;
   readonly minLevel: number;
-  readonly kind: "ingredient" | "packaging";
+  readonly kind: InventoryItemKind;
   readonly status: InventoryStatus;
+  readonly reserved?: number;
+  readonly allocated?: number;
+  readonly recipeId?: EntityId;
+  readonly averageUnitCost?: number;
   readonly packageQuantity?: number;
   readonly packagePrice?: number;
   readonly unitCost?: number;
+  /** Archived items stay in the database for history but are hidden from active inventory. */
+  readonly archived?: boolean;
 }
 
 export interface DomainRecipeIngredient {
@@ -52,7 +67,7 @@ export interface DomainRecipe {
   readonly yield: string;
   readonly batchCost: number;
   readonly sellingPrice: number;
-  readonly flowId: EntityId;
+  readonly flowId: EntityId | null;
   readonly ingredients: readonly DomainRecipeIngredient[];
   readonly archived?: boolean;
   readonly marginPercent?: number;
@@ -117,7 +132,43 @@ export interface DomainInventoryTransaction {
   readonly sourceKey: string;
   readonly itemId: EntityId;
   readonly quantityChange: number;
-  readonly reason: "task-completed" | "order-completed" | "restock" | "adjustment";
+  readonly reason: "task-completed" | "order-completed" | "restock" | "adjustment" | "purchase" | "production-usage" | "production-output" | "reservation";
+  readonly transactionType?: InventoryTransactionType;
+  readonly baseUnit?: InventoryBaseUnit;
+  readonly unitCost?: number;
+  readonly totalCost?: number;
+  readonly actorId?: EntityId;
+  readonly sourceType?: string;
+  readonly sourceId?: EntityId;
+  readonly createdAt?: string;
+}
+
+export interface DomainInventoryReservation {
+  readonly id: EntityId;
+  readonly bakeryId: BakeryId;
+  readonly orderId: EntityId;
+  readonly orderItemId: EntityId;
+  readonly itemId: EntityId;
+  readonly quantity: number;
+  readonly reservationDate: string;
+  readonly status: "reserved" | "fulfilled" | "released";
+  readonly sourceKey: string;
+}
+
+export interface DomainFinishedGoodAllocation {
+  readonly id: EntityId;
+  readonly bakeryId: BakeryId;
+  readonly itemId: EntityId;
+  readonly orderId?: EntityId;
+  readonly orderItemId?: EntityId;
+  readonly quantity: number;
+  readonly status: "allocated" | "released" | "fulfilled";
+}
+
+export interface DomainInventoryFinanceSummary {
+  readonly purchaseSpendCents: number;
+  readonly inventoryValueCents: number;
+  readonly consumedProductCostCents: number;
 }
 
 export type InvoiceStatus =
@@ -287,6 +338,9 @@ export interface BakeryDomainSnapshot {
   readonly orderItemsById: Readonly<Record<EntityId, DomainOrderItem>>;
   readonly tasksById: Readonly<Record<EntityId, DomainTask>>;
   readonly inventoryTransactionsById: Readonly<Record<EntityId, DomainInventoryTransaction>>;
+  readonly inventoryReservationsById?: Readonly<Record<EntityId, DomainInventoryReservation>>;
+  readonly finishedGoodAllocationsById?: Readonly<Record<EntityId, DomainFinishedGoodAllocation>>;
+  readonly inventoryFinance?: DomainInventoryFinanceSummary;
   readonly invoicesById?: Readonly<Record<EntityId, DomainInvoice>>;
   readonly paymentsById?: Readonly<Record<EntityId, DomainPayment>>;
   readonly invoiceEventsById?: Readonly<Record<EntityId, DomainInvoiceEvent>>;
@@ -413,6 +467,20 @@ export interface CreateIngredientInput extends MutationScope {
   readonly kind: "ingredient" | "packaging";
 }
 
+export interface UpdateIngredientInput extends MutationScope {
+  readonly ingredientId: EntityId;
+  readonly name: string;
+  readonly unit: InventoryBaseUnit;
+  readonly packageQuantity: number;
+  readonly packagePrice: number;
+  readonly minLevel: number;
+  readonly kind: "ingredient" | "packaging";
+}
+
+export interface DeleteIngredientInput extends MutationScope {
+  readonly ingredientId: EntityId;
+}
+
 export interface RecordMovementInput extends MutationScope {
   readonly movementId: EntityId;
   readonly ingredientId: EntityId;
@@ -428,9 +496,44 @@ export interface RestockInventoryInput extends MutationScope {
   readonly notes?: string;
 }
 
+export interface ReceiveInventoryInput extends MutationScope {
+  readonly itemId: EntityId;
+  readonly packageCount: number;
+  readonly packageQuantity: number;
+  readonly packageUnit: InventoryBaseUnit;
+  readonly packagePriceCents: number;
+  readonly sourceKey: string;
+  readonly invoiceReference?: string;
+  readonly notes?: string;
+}
+
 export interface AdjustInventoryInput extends MutationScope {
   readonly itemId: EntityId;
   readonly newOnHand: number;
+  readonly notes?: string;
+}
+
+export interface ReserveInventoryInput extends MutationScope {
+  readonly orderId: EntityId;
+  readonly orderItemId: EntityId;
+  readonly reservationDate: string;
+  readonly sourceKey: string;
+  readonly requirements: readonly { itemId: EntityId; quantity: number }[];
+}
+
+export interface FulfillInventoryReservationInput extends MutationScope {
+  readonly orderItemId: EntityId;
+  readonly sourceKey: string;
+}
+
+export interface CompletePackagingCheckpointInput extends MutationScope {
+  readonly orderId: EntityId;
+  readonly orderItemId: EntityId;
+  readonly checkpointKey: string;
+  readonly usage: readonly { itemId: EntityId; quantity: number }[];
+  readonly finishedGoodItemId: EntityId;
+  readonly outputQuantity: number;
+  readonly allocateToOrder: boolean;
   readonly notes?: string;
 }
 
@@ -445,7 +548,7 @@ export interface CreateRecipeInput extends MutationScope {
   readonly name: string;
   readonly yield: string;
   readonly sellingPrice: number;
-  readonly flowId: EntityId;
+  readonly flowId: EntityId | null;
   readonly ingredients: readonly RecipeIngredientInput[];
 }
 
@@ -454,7 +557,7 @@ export interface UpdateRecipeInput extends MutationScope {
   readonly name?: string;
   readonly yield?: string;
   readonly sellingPrice?: number;
-  readonly flowId?: EntityId;
+  readonly flowId?: EntityId | null;
   readonly ingredients?: readonly RecipeIngredientInput[];
 }
 
@@ -499,6 +602,7 @@ export interface DomainEntityChanges {
   readonly inventoryTransactions?: readonly DomainInventoryTransaction[];
   readonly recipes?: readonly DomainRecipe[];
   readonly flows?: readonly DomainProductionFlow[];
+  readonly deletedFlowIds?: readonly EntityId[];
   readonly customers?: readonly DomainCustomer[];
   readonly invoices?: readonly DomainInvoice[];
   readonly payments?: readonly DomainPayment[];
@@ -554,6 +658,18 @@ export interface CreateIngredientResult {
   readonly changes: DomainEntityChanges;
 }
 
+export interface UpdateIngredientResult {
+  readonly kind: "ingredient-updated";
+  readonly operationId: string;
+  readonly changes: DomainEntityChanges;
+}
+
+export interface DeleteIngredientResult {
+  readonly kind: "ingredient-deleted";
+  readonly operationId: string;
+  readonly changes: DomainEntityChanges;
+}
+
 export interface RecordMovementResult {
   readonly kind: "movement-recorded";
   readonly operationId: string;
@@ -601,10 +717,16 @@ export interface ProductionPort {
 export interface InventoryPort {
   restockInventory?(input: RestockInventoryInput): Promise<AdapterResult<InventoryResult>>;
   adjustInventory?(input: AdjustInventoryInput): Promise<AdapterResult<InventoryResult>>;
+  receiveInventory?(input: ReceiveInventoryInput): Promise<AdapterResult<InventoryResult>>;
+  reserveInventory?(input: ReserveInventoryInput): Promise<AdapterResult<InventoryResult>>;
+  fulfillInventoryReservation?(input: FulfillInventoryReservationInput): Promise<AdapterResult<InventoryResult>>;
+  completePackagingCheckpoint?(input: CompletePackagingCheckpointInput): Promise<AdapterResult<InventoryResult>>;
 }
 
 export interface IngredientsPort {
   createIngredient?(input: CreateIngredientInput): Promise<AdapterResult<CreateIngredientResult>>;
+  updateIngredient?(input: UpdateIngredientInput): Promise<AdapterResult<UpdateIngredientResult>>;
+  deleteIngredient?(input: DeleteIngredientInput): Promise<AdapterResult<DeleteIngredientResult>>;
   recordMovement?(input: RecordMovementInput): Promise<AdapterResult<RecordMovementResult>>;
 }
 

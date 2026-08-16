@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURE_BAKERY_IDS } from "../domain/fixtures";
 import { createSessionLocalBakeryDomainAdapter } from "../domain/localAdapter";
+import type { DomainProductionFlow, ProductionFlowResult } from "../domain/types";
 import { createBakeryDomainController, selectMutationState } from "./domainState";
 import { selectCustomers, selectDashboard, selectFinances, selectInventory, selectOrders, selectProduction, selectSnapshot } from "./selectors";
 
@@ -73,6 +74,57 @@ describe("bakery domain state", () => {
     expect(selectMutationState(controller.getState(), "state-transition-order-invalid")).toMatchObject({ status: "error", error: { kind: "validation" } });
   });
 
+  it("commits a created recipe to the current snapshot without a reload", async () => {
+    const { controller } = await loadedController();
+    const recipe = {
+      id: "recipe-state-created",
+      name: "State Test Recipe",
+      yield: "1 loaf",
+      batchCost: 2,
+      sellingPrice: 8,
+      flowId: null,
+      ingredients: [],
+      archived: false,
+      marginPercent: 75,
+    };
+
+    const result = await controller.createRecipe({
+      bakeryId: earls,
+      operationId: "state-create-recipe",
+      recipeId: recipe.id,
+      name: recipe.name,
+      yield: recipe.yield,
+      sellingPrice: recipe.sellingPrice,
+      flowId: recipe.flowId,
+      ingredients: recipe.ingredients,
+    });
+    const after = selectSnapshot(controller.getState());
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { changes: { recipes: [{ id: recipe.id, name: recipe.name, batchCost: 0, marginPercent: 100 }] } },
+    });
+    expect(after?.recipesById[recipe.id]).toMatchObject({ id: recipe.id, name: recipe.name, batchCost: 0, marginPercent: 100 });
+
+    const updateResult = await controller.updateRecipe({
+      bakeryId: earls,
+      operationId: "state-update-recipe",
+      recipeId: recipe.id,
+      name: "Updated State Test Recipe",
+      yield: "2 loaves",
+      sellingPrice: 10,
+      flowId: null,
+      ingredients: [],
+    });
+    const afterUpdate = selectSnapshot(controller.getState());
+
+    expect(updateResult).toMatchObject({
+      ok: true,
+      data: { changes: { recipes: [{ id: recipe.id, name: "Updated State Test Recipe", yield: "2 loaves", sellingPrice: 10 }] } },
+    });
+    expect(afterUpdate?.recipesById[recipe.id]).toMatchObject({ name: "Updated State Test Recipe", yield: "2 loaves", sellingPrice: 10 });
+  });
+
   it("commits an authoritative full-balance payment without changing order status", async () => {
     const { controller } = await loadedController();
     const result = await controller.markOrderPaid({ bakeryId: earls, operationId: "state-pay-order", orderId: "order-025" });
@@ -105,5 +157,57 @@ describe("bakery domain state", () => {
     const marina = selectSnapshot(controller.getState());
     expect(marina?.bakeryId).toBe(FIXTURE_BAKERY_IDS.MARINA);
     expect(marina?.ordersById["order-024"]).toBeUndefined();
+  });
+
+  it("commits and deletes authoritative production-flow changes", async () => {
+    const { controller, snapshot: before } = await loadedController();
+    const flow: DomainProductionFlow = {
+      id: "state-custom-flow",
+      name: "State custom flow",
+      recipe: "Sourdough",
+      isDefault: false,
+      steps: [],
+    };
+
+    const saved = await controller.saveProductionFlow({ bakeryId: earls, operationId: "state-save-flow", flow });
+    expect(saved).toMatchObject({ ok: true, data: { changes: { flows: [flow] } } });
+    expect(controller.getState().resource).toMatchObject({ data: { flowsById: { "state-custom-flow": flow } } });
+
+    await controller.load(earls);
+    expect(controller.getState().resource).toMatchObject({ data: { flowsById: { "state-custom-flow": flow } } });
+
+    const deleted = await controller.deleteProductionFlow({ bakeryId: earls, operationId: "state-delete-flow", flowId: flow.id });
+    expect(deleted).toMatchObject({ ok: true, data: { changes: { deletedFlowIds: [flow.id] } } });
+    expect(controller.getState().resource).toMatchObject({ data: { flowsById: { ...before.flowsById } } });
+  });
+
+  it("ignores a flow mutation that resolves after switching bakeries", async () => {
+    const baseAdapter = createSessionLocalBakeryDomainAdapter();
+    let resolveSave: (result: { ok: true; data: ProductionFlowResult }) => void = () => undefined;
+    const pendingSave = new Promise<{ ok: true; data: ProductionFlowResult }>((resolve) => {
+      resolveSave = resolve;
+    });
+    const adapter = { ...baseAdapter, saveProductionFlow: () => pendingSave };
+    const controller = createBakeryDomainController(adapter);
+    await controller.load(earls);
+    const saving = controller.saveProductionFlow({
+      bakeryId: earls,
+      operationId: "state-stale-flow",
+      flow: { id: "state-stale-flow", name: "Stale flow", recipe: "", isDefault: false, steps: [] },
+    });
+
+    await controller.load(FIXTURE_BAKERY_IDS.MARINA);
+    resolveSave({
+      ok: true,
+      data: {
+        kind: "production-flow-mutated",
+        operationId: "state-stale-flow",
+        changes: { flows: [{ id: "state-stale-flow", name: "Stale flow", recipe: "", isDefault: false, steps: [] }] },
+      },
+    });
+    await saving;
+
+    expect(selectSnapshot(controller.getState())?.bakeryId).toBe(FIXTURE_BAKERY_IDS.MARINA);
+    expect(selectSnapshot(controller.getState())?.flowsById["state-stale-flow"]).toBeUndefined();
   });
 });

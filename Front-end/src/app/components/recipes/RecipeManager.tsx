@@ -17,6 +17,7 @@ import {
   Clock,
 } from "lucide-react";
 import { RecipeEditorDialog, type RecipeEditorDialogProps } from "./RecipeEditorDialog";
+import type { InventoryItemDraft } from "../inventory/InventoryItemCreateDialog";
 import { ProductionFlowBuilder } from "../production/ProductionFlowBuilder";
 import { DEFAULT_FLOWS as DOMAIN_DEFAULT_FLOWS, type FlowStep, type ProductionFlow } from "../../production";
 
@@ -32,7 +33,7 @@ export interface DomainRecipeItem {
   readonly yield: string;
   readonly batchCost: number;
   readonly sellingPrice: number;
-  readonly flowId: string;
+  readonly flowId: string | null;
   readonly ingredients: readonly RecipeIngredient[];
   readonly archived?: boolean;
 }
@@ -41,6 +42,7 @@ export interface DomainInventoryItem {
   readonly id: string;
   readonly name: string;
   readonly unit: string;
+  readonly kind?: "ingredient" | "packaging" | "finished_good";
   readonly packageQuantity?: number;
   readonly packagePrice?: number;
   readonly unitCost?: number;
@@ -57,21 +59,14 @@ export interface RecipeManagerProps {
   recipes?: readonly DomainRecipeItem[];
   inventoryItems?: readonly DomainInventoryItem[];
   productionFlows?: readonly ProductionFlow[] | readonly DomainFlowItem[];
-  onAddRecipe?: (recipe: Omit<DomainRecipeItem, "id">) => void;
-  onUpdateRecipe?: (id: string, patch: Partial<DomainRecipeItem>) => void;
+  onAddRecipe?: (recipe: Omit<DomainRecipeItem, "id">) => void | Promise<void>;
+  onUpdateRecipe?: (id: string, patch: Partial<DomainRecipeItem>) => void | Promise<void>;
   onDuplicateRecipe?: (recipeId: string) => void;
   onArchiveRecipe?: (recipeId: string) => void;
   onRestoreRecipe?: (recipeId: string) => void;
-  onSaveProductionFlow?: (flow: ProductionFlow) => void;
+  onSaveProductionFlow?: (flow: ProductionFlow) => void | Promise<void>;
+  onCreateInventoryItem?: (draft: InventoryItemDraft) => Promise<DomainInventoryItem | void> | DomainInventoryItem | void;
 }
-
-const DEFAULT_INVENTORY: readonly DomainInventoryItem[] = [
-  { id: "flour", name: "Kirkland Organic Flour", unit: "g", unitCost: 0.002 },
-  { id: "water", name: "Water", unit: "ml", unitCost: 0.000057 },
-  { id: "salt", name: "Salt", unit: "g", unitCost: 0.003 },
-  { id: "oil", name: "Olive Oil", unit: "ml", unitCost: 0.008 },
-  { id: "bag", name: "Bakery Bags", unit: "pcs", unitCost: 0.15 },
-];
 
 const DEFAULT_FLOWS: readonly DomainFlowItem[] = [
   { id: "flow-sourdough", name: "Standard Sourdough Loaf" },
@@ -123,7 +118,7 @@ function getMarginBadgeClass(margin: number): string {
 
 export function RecipeManager({
   recipes: externalRecipes,
-  inventoryItems = DEFAULT_INVENTORY,
+  inventoryItems = [],
   productionFlows = DEFAULT_FLOWS,
   onAddRecipe,
   onUpdateRecipe,
@@ -131,6 +126,7 @@ export function RecipeManager({
   onArchiveRecipe,
   onRestoreRecipe,
   onSaveProductionFlow,
+  onCreateInventoryItem,
 }: RecipeManagerProps) {
   const [internalRecipes, setInternalRecipes] = useState<readonly DomainRecipeItem[]>(
     () => (externalRecipes ? [...externalRecipes] : INITIAL_RECIPES)
@@ -147,14 +143,17 @@ export function RecipeManager({
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const [editingRecipe, setEditingRecipe] = useState<DomainRecipeItem | null | undefined>(undefined);
+  const [saveError, setSaveError] = useState("");
   // undefined = modal closed, null = creating new recipe, object = editing recipe
 
   const [builderFlow, setBuilderFlow] = useState<ProductionFlow | null>(null);
   const [isFlowBuilderOpen, setIsFlowBuilderOpen] = useState(false);
   const [builderRecipeName, setBuilderRecipeName] = useState<string>("");
+  const [builderRecipeId, setBuilderRecipeId] = useState<string | null>(null);
 
   const handleOpenFlowBuilder = (recipe: DomainRecipeItem) => {
     setBuilderRecipeName(recipe.name);
+    setBuilderRecipeId(recipe.id);
     const flows = productionFlows as ProductionFlow[];
     const existing = Array.isArray(flows)
       ? flows.find((f) => f.id === recipe.flowId || f.recipe === recipe.name)
@@ -162,6 +161,10 @@ export function RecipeManager({
 
     if (existing && "steps" in existing && Array.isArray(existing.steps)) {
       setBuilderFlow(existing as ProductionFlow);
+    } else if (!recipe.flowId) {
+      // An unassigned recipe opens a new builder with its starter steps so it
+      // can receive a flow later without requiring a placeholder flow first.
+      setBuilderFlow(null);
     } else {
       const fallbackFlow = DOMAIN_DEFAULT_FLOWS.find((f) => f.recipe === recipe.name) || {
         id: recipe.flowId || `flow-${recipe.id}`,
@@ -264,57 +267,49 @@ export function RecipeManager({
     }
   };
 
-  const handleSaveRecipe = (recipeData: {
+  const handleSaveRecipe = async (recipeData: {
     id?: string;
     name: string;
     yield: string;
     sellingPrice: number;
     batchCost: number;
-    flowId: string;
+    flowId: string | null;
     ingredients: { inventoryItemId: string; quantity: number; cost: number }[];
   }) => {
-    if (recipeData.id) {
-      // Update existing
-      setInternalRecipes((prev) =>
-        prev.map((r) =>
-          r.id === recipeData.id
-            ? {
-                ...r,
-                name: recipeData.name,
-                yield: recipeData.yield,
-                sellingPrice: recipeData.sellingPrice,
-                batchCost: recipeData.batchCost,
-                flowId: recipeData.flowId,
-                ingredients: recipeData.ingredients,
-              }
-            : r
-        )
-      );
-      if (onUpdateRecipe) {
-        onUpdateRecipe(recipeData.id, recipeData);
+    setSaveError("");
+    try {
+      if (recipeData.id) {
+        if (onUpdateRecipe) {
+          await onUpdateRecipe(recipeData.id, recipeData);
+        } else {
+          setInternalRecipes((prev) =>
+            prev.map((r) =>
+              r.id === recipeData.id
+                ? { ...r, ...recipeData }
+                : r
+            )
+          );
+        }
+      } else if (onAddRecipe) {
+        await onAddRecipe(recipeData);
+      } else {
+        setInternalRecipes((prev) => [...prev, {
+          id: `r-${Date.now()}`,
+          ...recipeData,
+          archived: false,
+        }]);
       }
-    } else {
-      // Add new
-      const newRecipe: DomainRecipeItem = {
-        id: `r-${Date.now()}`,
-        name: recipeData.name,
-        yield: recipeData.yield,
-        sellingPrice: recipeData.sellingPrice,
-        batchCost: recipeData.batchCost,
-        flowId: recipeData.flowId || "flow-sourdough",
-        ingredients: recipeData.ingredients,
-        archived: false,
-      };
-      setInternalRecipes((prev) => [...prev, newRecipe]);
-      if (onAddRecipe) {
-        onAddRecipe(recipeData);
-      }
+      setEditingRecipe(undefined);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save recipe.";
+      setSaveError(message);
+      throw error;
     }
-    setEditingRecipe(undefined);
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6">
+      {saveError && <p role="alert" className="rounded-lg bg-[#FCE9E7] p-3 text-xs font-semibold text-[#B8443C]">{saveError}</p>}
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-[#E5DDD3] shadow-sm">
         <div className="flex items-center gap-3">
@@ -428,7 +423,7 @@ export function RecipeManager({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRecipes.map((recipe) => {
             const margin = getMargin(recipe.sellingPrice, recipe.batchCost);
-            const flow = flowMap.get(recipe.flowId);
+            const flow = recipe.flowId ? flowMap.get(recipe.flowId) : undefined;
 
             return (
               <div
@@ -462,7 +457,7 @@ export function RecipeManager({
                   {/* Flow Tag & Edit Production Flow Button */}
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#7A3E24] bg-[#FBF8F3] px-2.5 py-1 rounded-lg border border-[#E5DDD3]">
-                      <Layers size={12} /> {flow ? flow.name : "Custom Flow"}
+                      <Layers size={12} /> {flow ? flow.name : "No production flow assigned"}
                     </div>
                     <button
                       type="button"
@@ -576,6 +571,7 @@ export function RecipeManager({
           productionFlows={productionFlows}
           onClose={() => setEditingRecipe(undefined)}
           onSave={handleSaveRecipe}
+          onCreateInventoryItem={onCreateInventoryItem}
         />
       )}
 
@@ -588,13 +584,26 @@ export function RecipeManager({
           onClose={() => {
             setIsFlowBuilderOpen(false);
             setBuilderFlow(null);
+            setBuilderRecipeId(null);
           }}
-          onSave={(savedFlow) => {
-            if (onSaveProductionFlow) {
-              onSaveProductionFlow(savedFlow);
+          onSave={async (savedFlow) => {
+            await onSaveProductionFlow?.(savedFlow);
+            if (builderRecipeId) {
+              setInternalRecipes((prev) =>
+                prev.map((recipe) => recipe.id === builderRecipeId ? { ...recipe, flowId: savedFlow.id } : recipe)
+              );
+              onUpdateRecipe?.(builderRecipeId, { flowId: savedFlow.id });
             }
             setIsFlowBuilderOpen(false);
             setBuilderFlow(null);
+            setBuilderRecipeId(null);
+          }}
+          onResetDefault={() => {
+            const defaultFlow = DOMAIN_DEFAULT_FLOWS.find((flow) => flow.id === builderFlow?.id || flow.recipe === builderRecipeName);
+            if (defaultFlow && onSaveProductionFlow) onSaveProductionFlow(defaultFlow);
+            setIsFlowBuilderOpen(false);
+            setBuilderFlow(null);
+            setBuilderRecipeId(null);
           }}
         />
       )}

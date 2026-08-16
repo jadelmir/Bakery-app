@@ -32,6 +32,7 @@ import { RecordPaymentDialog } from "./RecordPaymentDialog";
 
 export interface InvoiceListProps {
   readonly invoices?: readonly DomainInvoice[];
+  readonly bakeryId?: string;
   readonly customers?: readonly DomainCustomer[];
   readonly orders?: readonly (DomainOrder | OrderSummary)[];
   readonly paymentMethods?: readonly DomainPaymentMethod[];
@@ -42,107 +43,6 @@ export interface InvoiceListProps {
   readonly onOpenPaymentSettings?: () => void;
   readonly onOpenPublicInvoice?: (publicToken: string) => void;
 }
-
-const DEFAULT_INVOICES: readonly DomainInvoice[] = [
-  {
-    id: "inv-101",
-    bakeryId: "bakery-north",
-    invoiceNumber: "INV-2026-001",
-    publicToken: "tok_sourdough_01",
-    customerId: "c1",
-    customerName: "Sarah Mitchell",
-    customerEmail: "sarah.m@email.com",
-    status: "Partially paid",
-    issueDate: "2026-07-20",
-    dueDate: "2026-08-03",
-    subtotalCents: 4400,
-    taxCents: 350,
-    discountCents: 0,
-    totalCents: 4750,
-    amountPaidCents: 2000,
-    balanceCents: 2750,
-    items: [
-      {
-        id: "inv-101:1",
-        invoiceId: "inv-101",
-        description: "Sourdough Loaves (2x)",
-        quantity: 2,
-        unitPriceCents: 1400,
-        totalCents: 2800,
-      },
-      {
-        id: "inv-101:2",
-        invoiceId: "inv-101",
-        description: "Focaccia Trays (2x)",
-        quantity: 2,
-        unitPriceCents: 800,
-        totalCents: 1600,
-      },
-    ],
-    notes: "Please pay remaining balance via Zelle or PayPal.",
-    createdAt: "2026-07-20T10:00:00Z",
-  },
-  {
-    id: "inv-102",
-    bakeryId: "bakery-north",
-    invoiceNumber: "INV-2026-002",
-    publicToken: "tok_reed_02",
-    customerId: "c3",
-    customerName: "The Reed Family",
-    customerEmail: "reed.family@email.com",
-    status: "Sent",
-    issueDate: "2026-07-25",
-    dueDate: "2026-08-08",
-    subtotalCents: 5600,
-    taxCents: 448,
-    discountCents: 500,
-    totalCents: 5548,
-    amountPaidCents: 0,
-    balanceCents: 5548,
-    items: [
-      {
-        id: "inv-102:1",
-        invoiceId: "inv-102",
-        description: "Bulk Sourdough Loaves (4x)",
-        quantity: 4,
-        unitPriceCents: 1400,
-        totalCents: 5600,
-      },
-    ],
-    notes: "Monthly bulk order.",
-    createdAt: "2026-07-25T14:00:00Z",
-  },
-  {
-    id: "inv-103",
-    bakeryId: "bakery-north",
-    invoiceNumber: "INV-2026-003",
-    publicToken: "tok_priya_03",
-    customerId: "c4",
-    customerName: "Priya Nair",
-    customerEmail: "priya.n@email.com",
-    status: "Paid",
-    issueDate: "2026-07-15",
-    dueDate: "2026-07-29",
-    subtotalCents: 1600,
-    taxCents: 128,
-    discountCents: 0,
-    totalCents: 1728,
-    amountPaidCents: 1728,
-    balanceCents: 0,
-    items: [
-      {
-        id: "inv-103:1",
-        invoiceId: "inv-103",
-        description: "Focaccia Tray",
-        quantity: 2,
-        unitPriceCents: 800,
-        totalCents: 1600,
-      },
-    ],
-    notes: "Paid in full via Zelle.",
-    createdAt: "2026-07-15T09:00:00Z",
-  },
-];
 
 const STATUS_CONFIG: Record<
   InvoiceStatus,
@@ -167,6 +67,7 @@ const STATUS_CONFIG: Record<
 
 export function InvoiceList({
   invoices: propInvoices,
+  bakeryId = "bakery-north",
   customers = [],
   orders = [],
   paymentMethods,
@@ -177,7 +78,7 @@ export function InvoiceList({
   onOpenPaymentSettings,
   onOpenPublicInvoice,
 }: InvoiceListProps) {
-  const invoiceList = propInvoices && propInvoices.length > 0 ? propInvoices : DEFAULT_INVOICES;
+  const invoiceList = propInvoices ?? [];
 
   const [search, setSearch] = useState("");
   const [filterTab, setFilterTab] = useState<string>("all");
@@ -513,6 +414,7 @@ export function InvoiceList({
       {editorOpen && (
         <InvoiceEditor
           invoice={editingInvoice}
+          bakeryId={bakeryId}
           customers={customers}
           orders={orders}
           onClose={() => setEditorOpen(false)}

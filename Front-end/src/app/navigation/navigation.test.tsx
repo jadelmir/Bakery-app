@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DirtyFormGuardProvider, UnsavedChangesDialog, useDirtyFormGuard, useDirtyFormRegistration } from "./dirtyFormGuard";
 import { isWorkspacePath, resolveWorkspaceRoute, workspacePath, workspaceRouteRegistry } from "./routeRegistry";
 import { WorkspaceRoutes } from "./WorkspaceRoutes";
-import { Sidebar } from "./Sidebar";
+import { SIDEBAR_NAV, Sidebar } from "./Sidebar";
 import type { BakeryMembership } from "../workspace";
 
 afterEach(cleanup);
@@ -31,8 +31,22 @@ describe("workspace route registry", () => {
     ]);
     expect(workspacePath("payment-settings")).toBe("/invoices/payment-settings");
     expect(workspacePath("account")).toBe("/settings/account");
-    expect(workspacePath("starter")).toBe("/inventory/starter");
     expect(workspacePath("more")).toBe("/more");
+  });
+
+  it("keeps the sidebar items in the requested workspace order", () => {
+    expect(SIDEBAR_NAV.map((item) => item.label)).toEqual([
+      "Home",
+      "Orders",
+      "Recipes",
+      "Inventory",
+      "Customers",
+      "Production",
+      "Finances",
+      "Invoices",
+      "Online Store",
+      "Settings",
+    ]);
   });
 
   it("resolves explicit legacy aliases to their canonical route without claiming public paths", () => {
@@ -130,6 +144,25 @@ describe("dirty-form guard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Return to bakery selection?" })).not.toBeInTheDocument());
     expect(onManageStores).not.toHaveBeenCalled();
+  });
+
+  it("shows the active upcoming order count in the Orders navigation item", () => {
+    render(
+      <MemoryRouter>
+        <DirtyFormGuardProvider>
+          <Sidebar
+            bakeryName="Harbor Bakery"
+            activeMembership={testMembership}
+            upcomingOrderCount={4}
+            onAddOrder={vi.fn()}
+            onLogout={vi.fn()}
+          />
+        </DirtyFormGuardProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("button", { name: "Orders" })).toHaveAccessibleDescription("4 upcoming orders");
+    expect(screen.getByRole("button", { name: "Orders" })).toHaveTextContent("4");
   });
 
   it("routes confirmation through the dirty-form guard before returning", () => {

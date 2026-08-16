@@ -5,6 +5,39 @@ import { createSessionLocalBakeryDomainAdapter, calculateRecipeMargin } from "./
 const earls = FIXTURE_BAKERY_IDS.EARLS;
 
 describe("session-local bakery domain adapter", () => {
+  it("records package receiving and physical counts as retry-safe inventory events", async () => {
+    const adapter = createSessionLocalBakeryDomainAdapter();
+    const received = await adapter.restockInventory({
+      bakeryId: earls,
+      operationId: "receive-flour-once",
+      itemId: "flour",
+      quantityAdded: 75000,
+      unitCost: 0.004,
+      notes: "Three 25kg bags",
+    });
+    const retried = await adapter.restockInventory({
+      bakeryId: earls,
+      operationId: "receive-flour-once",
+      itemId: "flour",
+      quantityAdded: 75000,
+      unitCost: 0.004,
+      notes: "Three 25kg bags",
+    });
+    const counted = await adapter.adjustInventory({
+      bakeryId: earls,
+      operationId: "count-flour-once",
+      itemId: "flour",
+      newOnHand: 74000,
+      notes: "Physical count",
+    });
+    const loaded = await adapter.loadSnapshot({ bakeryId: earls });
+
+    expect(received).toEqual(retried);
+    expect(received).toMatchObject({ ok: true, data: { changes: { inventoryItems: [{ onHand: 75800 }] } } });
+    expect(counted).toMatchObject({ ok: true, data: { changes: { inventoryItems: [{ onHand: 74000 }], inventoryTransactions: [{ quantityChange: -1800 }] } } });
+    expect(loaded).toMatchObject({ ok: true, data: { inventoryById: { flour: { onHand: 74000 } } } });
+  });
+
   it("loads known and newly created session-local bakeries from isolated fixture snapshots", async () => {
     const adapter = createSessionLocalBakeryDomainAdapter();
     const loaded = await adapter.loadSnapshot({ bakeryId: earls });
@@ -120,6 +153,8 @@ describe("session-local bakery domain adapter", () => {
       name: "Organic Flour", unit: "g", packageQuantity: pkgQty, packagePrice: pkgPrice, minLevel: 1000, kind: "ingredient",
     });
     expect(created).toMatchObject({ ok: true, data: { kind: "ingredient-created" } });
+    const createdSnapshot = await adapter.loadSnapshot({ bakeryId: earls });
+    expect(createdSnapshot).toMatchObject({ ok: true, data: { inventoryById: { "ing-flour-organic": { onHand: 0, packageQuantity: pkgQty, packagePrice: pkgPrice, unitCost: costPerUnit } } } });
 
     const moved = await adapter.recordMovement!({
       bakeryId: earls, operationId: "restock-flour", movementId: "mov-001",
@@ -191,6 +226,32 @@ describe("session-local bakery domain adapter", () => {
       // Batch cost of sourdough in fixture is 3.2. Margin: ((20 - 3.2) / 20) * 100 = 84%
       expect(recipe?.marginPercent).toBe(84.0);
     }
+  });
+
+  it("allows recipes to be created unassigned and clears a later flow assignment", async () => {
+    const adapter = createSessionLocalBakeryDomainAdapter();
+
+    const created = await adapter.createRecipe({
+      bakeryId: earls,
+      operationId: "create-unassigned-recipe",
+      recipeId: "recipe-unassigned",
+      name: "Baguette",
+      yield: "1 loaf",
+      sellingPrice: 8,
+      flowId: null,
+      ingredients: [{ inventoryItemId: "flour", quantity: 500 }],
+    });
+
+    expect(created).toMatchObject({ ok: true, data: { changes: { recipes: [{ flowId: null }] } } });
+
+    const cleared = await adapter.updateRecipe({
+      bakeryId: earls,
+      operationId: "clear-unassigned-recipe-flow",
+      recipeId: "recipe-sourdough",
+      flowId: null,
+    });
+
+    expect(cleared).toMatchObject({ ok: true, data: { changes: { recipes: [{ flowId: null }] } } });
   });
 
   it("duplicates an existing recipe with (Copy) appended to name", async () => {

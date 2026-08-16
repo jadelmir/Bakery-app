@@ -15,6 +15,8 @@
     "supabase:push:dry-run": "supabase db push --linked --dry-run",
     "supabase:reset": "supabase db reset --local",
     "supabase:verify-seed": "node scripts/verify-local-bakery-seed.mjs",
+    "supabase:verify-production-flows": "node scripts/verify-local-production-flows.mjs",
+    "verify:invitation": "node scripts/verify-local-bakery-invitation.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:types": "node scripts/generate-database-types.mjs",
@@ -25,6 +27,7 @@
     "test:db:concurrency": "node scripts/test-workspace-concurrency.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:invitation": "playwright test --config playwright.invitation.config.ts",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {

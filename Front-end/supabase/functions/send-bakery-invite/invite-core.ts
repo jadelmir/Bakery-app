@@ -38,6 +38,14 @@ export function resolveAllowedOrigin(origin: string, appUrl: string) {
   return allowed.has(origin) ? origin : undefined;
 }
 
+function resolveRedirectOrigin(requestOrigin: string, appUrl: string) {
+  const app = new URL(appUrl);
+  if (requestOrigin === "http://localhost:5173" || requestOrigin === "http://127.0.0.1:5173") {
+    return requestOrigin;
+  }
+  return app.origin;
+}
+
 export function randomToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return btoa(String.fromCharCode(...bytes))
@@ -110,7 +118,8 @@ export async function handleInviteRequest(
     };
   }
 
-  const redirectTo = `${dependencies.appUrl.replace(/\/$/, "")}/?invitation=${encodeURIComponent(token)}`;
+  const redirectOrigin = resolveRedirectOrigin(request.origin, dependencies.appUrl);
+  const redirectTo = `${redirectOrigin}/?invitation=${encodeURIComponent(token)}`;
   try {
     await dependencies.sendEmail(email, redirectTo);
   } catch {

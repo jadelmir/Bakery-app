@@ -57,6 +57,21 @@ inviter and bakery rate limits, stores only a SHA-256 token hash, and sends a
 one-time Supabase Auth email. The application receives the opaque token only
 through the approved redirect.
 
+To verify the real local delivery and acceptance path, start Supabase and the
+Edge Function, then run the synthetic-data verifier. It creates temporary
+confirmed users and a bakery, invokes `send-bakery-invite`, inspects the Auth
+email in Mailpit, accepts the opaque invitation, confirms one persisted staff
+membership, checks replay rejection, and cleans up the synthetic records:
+
+```powershell
+$env:SUPABASE_SERVICE_ROLE_KEY = '<local service role key>'
+pnpm verify:invitation
+```
+
+The verifier uses `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_PUBLISHABLE_KEY` when set, otherwise the local URL and
+`SUPABASE_ANON_KEY`. It must not be run against production tenant data.
+
 Run the local function with the project-pinned CLI:
 
 ```bash

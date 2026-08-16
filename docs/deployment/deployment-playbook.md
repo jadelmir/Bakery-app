@@ -176,3 +176,9 @@ To manage schema migrations during local development without unintentional data 
 3. **Persistent Local Sample Data (`supabase/seed.sql`)**:
    - Store standard test bakeries, starter profiles, sample customer accounts, and ingredient items in `supabase/seed.sql`.
    - Whenever `supabase db reset` is executed, `seed.sql` automatically populates these records so developer test environments are restored instantly.
+
+4. **Production Flow Persistence Rollout Handoff**:
+   - Apply `20260816000614_persist_production_flows.sql` as a forward-only migration in staging first; do not edit an applied migration.
+   - Verify the local contract with `pnpm run supabase:verify-production-flows`, `supabase db lint --local --level error --fail-on error`, and the security advisor before staging acceptance.
+   - Complete authenticated staging acceptance for loading defaults/custom flows, importing JSON, saving step replacements, deleting flows, bakery isolation, and reload persistence before hosted rollout.
+   - If a hosted issue is found after migration, preserve the applied migration and ship a new corrective forward-fix migration. Do not claim rollback by editing or removing the original migration.

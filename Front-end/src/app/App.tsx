@@ -24,7 +24,8 @@ import {
 import type { ProductionTask } from "./production";
 import type { InventoryItem, Task } from "./types";
 import { createManualOrderService } from "../lib/supabase/manualOrderAdapter";
-import { AlertTriangle, Plus, Droplets, ShoppingBag, PackagePlus } from "lucide-react";
+import { createSupabaseInvoiceAdapter } from "../features/invoicing/invoiceAdapter";
+import { AlertTriangle, Plus, ShoppingBag, PackagePlus } from "lucide-react";
 
 const LazyPublicInvoiceView = lazy(() =>
   import("./components/invoicing/PublicInvoiceView").then(module => ({ default: module.PublicInvoiceView })),
@@ -49,7 +50,6 @@ export interface InventoryScreenProps {
   builds: ReturnType<typeof buildStarterPlans>;
   transactions: InventoryTransaction[];
   ingredients?: readonly InventoryItem[];
-  onOpenStarter: () => void;
   onRecordRestock?: (data: { itemId: string; quantityAdded: number; unitCost?: number; notes?: string }) => void;
 }
 
@@ -58,7 +58,6 @@ export function InventoryScreen({
   builds,
   transactions: initialTransactions,
   ingredients: externalIngredients,
-  onOpenStarter,
   onRecordRestock,
 }: InventoryScreenProps) {
   const [transactions, setTransactions] = useState<InventoryTransaction[]>(initialTransactions || []);
@@ -212,12 +211,6 @@ export function InventoryScreen({
           >
             <Plus size={14} /> Add Ingredient
           </button>
-          <button
-            onClick={onOpenStarter}
-            className="h-9 px-3 border border-[#7A3E24] text-[#7A3E24] rounded-[10px] text-sm font-bold flex items-center gap-1.5 hover:bg-[#F3DED1] transition-colors"
-          >
-            <Droplets size={14} /> Starter
-          </button>
         </div>
       </div>
 
@@ -363,7 +356,19 @@ export default function App({
     const publicToken = publicTokenMatch[1];
     return (
       <Suspense fallback={<PublicViewLoading label="Loading invoice…" />}>
-        <LazyPublicInvoiceView publicToken={publicToken} />
+        <LazyPublicInvoiceView
+          publicToken={publicToken}
+          {...(import.meta.env.MODE !== "test" && import.meta.env.VITE_USE_MOCK_BACKEND !== "true"
+            ? {
+                onFetchPublicInvoice: async (token: string) => {
+                  const result = await createSupabaseInvoiceAdapter().loadPublicInvoice(token);
+                  if (!result.ok) throw new Error(result.error.message);
+                  const invoice = result.data.invoice;
+                  return invoice ? { invoice, paymentMethods: result.data.paymentMethods } : undefined;
+                },
+              }
+            : {})}
+        />
       </Suspense>
     );
   }

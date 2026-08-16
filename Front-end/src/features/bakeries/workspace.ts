@@ -47,6 +47,26 @@ export interface WorkspaceAdapter {
 
 type WorkspaceClient = SupabaseClient<Database>;
 
+async function getFunctionErrorMessage(error: unknown): Promise<string> {
+  if (error && typeof error === "object" && "context" in error) {
+    const context = (error as { context?: unknown }).context;
+    if (context && typeof context === "object" && "clone" in context && typeof context.clone === "function") {
+      try {
+        const response = (context as Response).clone();
+        const payload = await response.json() as { error?: unknown };
+        if (typeof payload.error === "string" && payload.error.trim()) return payload.error;
+      } catch {
+        // Fall back to the SDK error when the response is not JSON or was already consumed.
+      }
+    }
+  }
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return "The invitation service failed.";
+}
+
 export function createSupabaseWorkspaceAdapter(
   client: WorkspaceClient = getSupabaseBrowserClient(),
 ): WorkspaceAdapter {
@@ -140,7 +160,7 @@ export function createSupabaseWorkspaceAdapter(
       const { error } = await client.functions.invoke("send-bakery-invite", {
         body: { bakeryId, email, role },
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(await getFunctionErrorMessage(error));
     },
     async revokeInvitation(invitationId) {
       const { error } = await client.rpc("revoke_bakery_invitation", {

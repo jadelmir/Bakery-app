@@ -1,10 +1,10 @@
 ## 1. Inventory data model and persistence
 
-- [ ] 1.1 Reconcile the legacy inventory movement tables into an additive
+- [x] 1.1 Reconcile the legacy inventory movement tables into an additive
   bakery-scoped ledger model supporting ingredients, packaging, finished goods,
   base units, package receiving, source keys, actors, costs, reservations, and
   allocations.
-- [ ] 1.2 Add transactional database functions or RPCs for receiving stock,
+- [x] 1.2 Add transactional database functions or RPCs for receiving stock,
   physical-count adjustments, prep-day reservations, packaging-checkpoint usage,
   finished-good output, and reservation fulfillment.
 - [ ] 1.3 Add RLS, idempotency constraints, indexes, and migration/backfill
@@ -13,10 +13,10 @@
 
 ## 2. Domain contracts and adapters
 
-- [ ] 2.1 Expand domain item, transaction, reservation, finished-good, and
+- [x] 2.1 Expand domain item, transaction, reservation, finished-good, and
   finance types and commands without breaking existing recipe/order/task
   contracts.
-- [ ] 2.2 Apply authoritative inventory items and transactions to domain state
+- [x] 2.2 Apply authoritative inventory items and transactions to domain state
   after successful mutations, including loading persisted inventory snapshots.
 - [ ] 2.3 Implement local-adapter receiving, reservation, packaging usage,
   output, allocation, negative-stock, and idempotency behavior with focused
@@ -24,19 +24,36 @@
 - [ ] 2.4 Implement the Supabase inventory adapter/RPC client and compose it
   with the authenticated bakery workspace adapter, with adapter contract tests.
 
-## 3. Inventory user experience
+## 3. Inventory and recipe user experience
 
-- [ ] 3.1 Replace the read-only inventory list with item categories, on-hand,
-  reserved, available, required, shortage, and finished-good allocation views.
-- [ ] 3.2 Add receive-purchase, physical-count, and relative-adjustment flows
+- [x] 3.1 Replace the read-only inventory list with two simple user-facing
+  sections, Ingredients and Retail supplies, showing on-hand, reserved,
+  available, required, and shortage values; keep finished goods out of the
+  manual add-item flow.
+- [x] 3.2 Add a shared create-inventory-item flow for name, category, base unit,
+  package quantity, package price, and optional minimum level. Calculate the
+  default base-unit cost, start new items at zero on hand, and make the flow
+  available from both Inventory and recipe creation.
+- [x] 3.3 Make new recipe ingredient lists empty, populate item pickers from
+  active bakery inventory, group options by Ingredients and Retail supplies,
+  and select a newly created item after inline creation. Remove all hardcoded
+  sample inventory fallbacks.
+- [x] 3.4 Add receive-purchase using the saved package definition, plus
+  physical-count and relative-adjustment flows
   with base-unit conversion, validation, pending/error/success states, and
   append-only history presentation.
-- [ ] 3.3 Update shopping-list and shortage explanations to use available stock
+- [x] 3.5 Update shopping-list and shortage explanations to use available stock
   after reservations and show whether a shortage is caused by demand or a
   minimum-level rule.
-- [ ] 3.4 Add focused UI tests for receiving, count adjustments, reservation
-  display, negative stock warnings, finished-good allocation, and retry-safe
-  mutation feedback.
+- [x] 3.6 Add focused UI tests for item creation, recipe item selection,
+  receiving, count adjustments, reservation display, negative stock warnings,
+  finished-good allocation, and retry-safe mutation feedback.
+- [x] 3.7 Add direct item-card editing and stock actions for existing ingredients
+  and retail supplies, close successful item creation, and cover the flow with
+  focused UI tests.
+- [x] 3.8 Add a confirmed item archive action from the item editor, hide
+  archived items from active inventory, preserve ledger history, and cover the
+  flow with focused UI tests.
 
 ## 4. Production and finance integration
 
@@ -54,7 +71,8 @@
 
 ## 5. Browser and product verification
 
-- [ ] 5.1 Add desktop/mobile Playwright coverage for receiving stock, viewing
+- [ ] 5.1 Add desktop/mobile Playwright coverage for creating inventory items,
+  creating a recipe from inventory-backed ingredients, receiving stock, viewing
   reservations and shortages, completing packaging, seeing finished-good
   output, and confirming finance totals.
 - [ ] 5.2 Manually verify the authenticated bakery journey with multiple members,

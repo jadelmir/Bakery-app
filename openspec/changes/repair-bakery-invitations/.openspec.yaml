@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-08-15
+goal: Ensure Invite someone sends a usable invitation through Supabase and the
+  invitee can accept access.

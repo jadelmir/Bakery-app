@@ -223,6 +223,8 @@ export type Database = {
       }
       ingredients: {
         Row: {
+          archived: boolean
+          average_unit_cost_cents: number
           bakery_id: string
           cost_per_unit: number
           created_at: string
@@ -233,10 +235,14 @@ export type Database = {
           on_hand: number
           package_price: number
           package_quantity: number
+          recipe_id: string | null
+          reserved: number
           unit: string
           updated_at: string
         }
         Insert: {
+          archived?: boolean
+          average_unit_cost_cents?: number
           bakery_id: string
           cost_per_unit?: number
           created_at?: string
@@ -247,10 +253,14 @@ export type Database = {
           on_hand?: number
           package_price: number
           package_quantity: number
+          recipe_id?: string | null
+          reserved?: number
           unit?: string
           updated_at?: string
         }
         Update: {
+          archived?: boolean
+          average_unit_cost_cents?: number
           bakery_id?: string
           cost_per_unit?: number
           created_at?: string
@@ -261,6 +271,8 @@ export type Database = {
           on_hand?: number
           package_price?: number
           package_quantity?: number
+          recipe_id?: string | null
+          reserved?: number
           unit?: string
           updated_at?: string
         }
@@ -270,6 +282,13 @@ export type Database = {
             columns: ["bakery_id"]
             isOneToOne: false
             referencedRelation: "bakeries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ingredients_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
             referencedColumns: ["id"]
           },
         ]
@@ -323,29 +342,62 @@ export type Database = {
         Row: {
           bakery_id: string
           created_at: string
+          created_by: string | null
+          fulfilled_at: string | null
+          fulfilled_by: string | null
+          fulfillment_source_key: string | null
           id: string
           ingredient_id: string | null
           order_id: string
+          order_item_id: string | null
           quantity_required: number
+          released_at: string | null
+          released_by: string | null
+          request_fingerprint: string | null
+          reservation_date: string | null
+          source_key: string | null
           status: string
+          updated_at: string
         }
         Insert: {
           bakery_id: string
           created_at?: string
+          created_by?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          fulfillment_source_key?: string | null
           id?: string
           ingredient_id?: string | null
           order_id: string
+          order_item_id?: string | null
           quantity_required: number
+          released_at?: string | null
+          released_by?: string | null
+          request_fingerprint?: string | null
+          reservation_date?: string | null
+          source_key?: string | null
           status?: string
+          updated_at?: string
         }
         Update: {
           bakery_id?: string
           created_at?: string
+          created_by?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          fulfillment_source_key?: string | null
           id?: string
           ingredient_id?: string | null
           order_id?: string
+          order_item_id?: string | null
           quantity_required?: number
+          released_at?: string | null
+          released_by?: string | null
+          request_fingerprint?: string | null
+          reservation_date?: string | null
+          source_key?: string | null
           status?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -369,46 +421,121 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "inventory_requirements_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
         ]
       }
       inventory_transactions: {
         Row: {
+          actor_id: string | null
+          affects_financials: boolean
+          allocation_order_id: string | null
+          allocation_order_item_id: string | null
+          allocation_status: string | null
           bakery_id: string
+          base_unit: string | null
           created_at: string
           id: string
           invoice_reference: string | null
+          is_legacy: boolean
           item_id: string | null
+          metadata: Json
           notes: string | null
+          order_id: string | null
+          order_item_id: string | null
+          package_count: number | null
+          package_price_cents: number | null
+          package_quantity: number | null
+          package_unit: string | null
           quantity_change: number
-          source_key: string | null
-          transaction_type: string | null
+          request_fingerprint: string | null
+          source_id: string | null
+          source_key: string
+          source_type: string | null
+          total_cost_cents: number | null
+          transaction_type: string
           unit_cost_cents: number | null
         }
         Insert: {
+          actor_id?: string | null
+          affects_financials?: boolean
+          allocation_order_id?: string | null
+          allocation_order_item_id?: string | null
+          allocation_status?: string | null
           bakery_id: string
+          base_unit?: string | null
           created_at?: string
           id?: string
           invoice_reference?: string | null
+          is_legacy?: boolean
           item_id?: string | null
+          metadata?: Json
           notes?: string | null
+          order_id?: string | null
+          order_item_id?: string | null
+          package_count?: number | null
+          package_price_cents?: number | null
+          package_quantity?: number | null
+          package_unit?: string | null
           quantity_change: number
-          source_key?: string | null
-          transaction_type?: string | null
+          request_fingerprint?: string | null
+          source_id?: string | null
+          source_key: string
+          source_type?: string | null
+          total_cost_cents?: number | null
+          transaction_type: string
           unit_cost_cents?: number | null
         }
         Update: {
+          actor_id?: string | null
+          affects_financials?: boolean
+          allocation_order_id?: string | null
+          allocation_order_item_id?: string | null
+          allocation_status?: string | null
           bakery_id?: string
+          base_unit?: string | null
           created_at?: string
           id?: string
           invoice_reference?: string | null
+          is_legacy?: boolean
           item_id?: string | null
+          metadata?: Json
           notes?: string | null
+          order_id?: string | null
+          order_item_id?: string | null
+          package_count?: number | null
+          package_price_cents?: number | null
+          package_quantity?: number | null
+          package_unit?: string | null
           quantity_change?: number
-          source_key?: string | null
-          transaction_type?: string | null
+          request_fingerprint?: string | null
+          source_id?: string | null
+          source_key?: string
+          source_type?: string | null
+          total_cost_cents?: number | null
+          transaction_type?: string
           unit_cost_cents?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "inventory_transactions_allocation_order_id_fkey"
+            columns: ["allocation_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_transactions_allocation_order_item_id_fkey"
+            columns: ["allocation_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inventory_transactions_bakery_id_fkey"
             columns: ["bakery_id"]
@@ -417,10 +544,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "inventory_transactions_item_id_fkey"
-            columns: ["item_id"]
+            foreignKeyName: "inventory_transactions_bakery_item_fkey"
+            columns: ["bakery_id", "item_id"]
             isOneToOne: false
             referencedRelation: "ingredients"
+            referencedColumns: ["bakery_id", "id"]
+          },
+          {
+            foreignKeyName: "inventory_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_transactions_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
         ]
@@ -815,6 +956,113 @@ export type Database = {
           },
         ]
       }
+      production_flow_steps: {
+        Row: {
+          bakery_id: string
+          category: string
+          created_at: string
+          day_offset: number
+          depends_on: string | null
+          duration_minutes: number
+          enabled: boolean
+          flow_id: string
+          groupable: boolean
+          id: string
+          instructions: string
+          name: string
+          sort_order: number
+          step_time: string
+          updated_at: string
+        }
+        Insert: {
+          bakery_id: string
+          category: string
+          created_at?: string
+          day_offset?: number
+          depends_on?: string | null
+          duration_minutes?: number
+          enabled?: boolean
+          flow_id: string
+          groupable?: boolean
+          id: string
+          instructions?: string
+          name: string
+          sort_order?: number
+          step_time?: string
+          updated_at?: string
+        }
+        Update: {
+          bakery_id?: string
+          category?: string
+          created_at?: string
+          day_offset?: number
+          depends_on?: string | null
+          duration_minutes?: number
+          enabled?: boolean
+          flow_id?: string
+          groupable?: boolean
+          id?: string
+          instructions?: string
+          name?: string
+          sort_order?: number
+          step_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_flow_steps_dependency_fkey"
+            columns: ["bakery_id", "flow_id", "depends_on"]
+            isOneToOne: false
+            referencedRelation: "production_flow_steps"
+            referencedColumns: ["bakery_id", "flow_id", "id"]
+          },
+          {
+            foreignKeyName: "production_flow_steps_flow_fkey"
+            columns: ["bakery_id", "flow_id"]
+            isOneToOne: false
+            referencedRelation: "production_flows"
+            referencedColumns: ["bakery_id", "id"]
+          },
+        ]
+      }
+      production_flows: {
+        Row: {
+          bakery_id: string
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          recipe: string
+          updated_at: string
+        }
+        Insert: {
+          bakery_id: string
+          created_at?: string
+          id: string
+          is_default?: boolean
+          name: string
+          recipe?: string
+          updated_at?: string
+        }
+        Update: {
+          bakery_id?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          recipe?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_flows_bakery_id_fkey"
+            columns: ["bakery_id"]
+            isOneToOne: false
+            referencedRelation: "bakeries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       production_tasks: {
         Row: {
           bakery_id: string
@@ -924,6 +1172,45 @@ export type Database = {
             columns: ["default_bakery_id"]
             isOneToOne: false
             referencedRelation: "bakeries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipe_ingredients: {
+        Row: {
+          created_at: string
+          inventory_item_id: string
+          quantity: number
+          recipe_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          inventory_item_id: string
+          quantity: number
+          recipe_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          inventory_item_id?: string
+          quantity?: number
+          recipe_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_ingredients_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "ingredients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipe_ingredients_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
             referencedColumns: ["id"]
           },
         ]
@@ -1338,6 +1625,32 @@ export type Database = {
         Args: { invitation_token: string }
         Returns: Json
       }
+      adjust_inventory_stock: {
+        Args: {
+          p_adjustment_mode: string
+          p_bakery_id: string
+          p_item_id: string
+          p_notes?: string
+          p_quantity: number
+          p_reason: string
+          p_source_key: string
+        }
+        Returns: Json
+      }
+      complete_inventory_packaging_checkpoint: {
+        Args: {
+          p_allocate_to_order?: boolean
+          p_bakery_id: string
+          p_checkpoint_key: string
+          p_finished_good_item_id: string
+          p_notes?: string
+          p_order_id: string
+          p_order_item_id: string
+          p_output_quantity: number
+          p_usage_json: Json
+        }
+        Returns: Json
+      }
       create_additional_bakery: {
         Args: { bakery_name?: string }
         Returns: string
@@ -1402,6 +1715,18 @@ export type Database = {
         Args: { invitation_token: string }
         Returns: Json
       }
+      delete_production_flow: {
+        Args: { p_bakery_id: string; p_flow_id: string }
+        Returns: boolean
+      }
+      fulfill_inventory_reservation: {
+        Args: {
+          p_bakery_id: string
+          p_order_item_id: string
+          p_source_key: string
+        }
+        Returns: Json
+      }
       generate_order_production_tasks: {
         Args: {
           p_bakery_id: string
@@ -1438,13 +1763,54 @@ export type Database = {
         Args: { p_bakery_id: string; p_order_id: string }
         Returns: Json
       }
+      receive_inventory_stock: {
+        Args: {
+          p_bakery_id: string
+          p_invoice_reference?: string
+          p_item_id: string
+          p_notes?: string
+          p_package_count: number
+          p_package_price_cents: number
+          p_package_quantity: number
+          p_package_unit: string
+          p_source_key: string
+        }
+        Returns: Json
+      }
       remove_bakery_member: {
         Args: { membership_id: string }
         Returns: undefined
       }
+      reserve_inventory_for_prep_day: {
+        Args: {
+          p_bakery_id: string
+          p_order_id: string
+          p_order_item_id: string
+          p_requirements_json: Json
+          p_reservation_date: string
+          p_source_key: string
+        }
+        Returns: Json
+      }
       revoke_bakery_invitation: {
         Args: { invitation_id: string }
         Returns: undefined
+      }
+      save_production_flow: {
+        Args: { p_bakery_id: string; p_flow: Json }
+        Returns: Json
+      }
+      save_recipe: {
+        Args: {
+          p_bakery_id: string
+          p_flow_id?: string
+          p_ingredients_json?: Json
+          p_name: string
+          p_recipe_id: string
+          p_selling_price_cents: number
+          p_yield: string
+        }
+        Returns: Json
       }
       set_default_bakery: {
         Args: { target_bakery_id: string }

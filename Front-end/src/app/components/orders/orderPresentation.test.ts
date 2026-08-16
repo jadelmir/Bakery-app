@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Order } from "../../types";
 import {
   getCurrentStageCounts,
+  getUpcomingOrderCount,
   getPickupPresentation,
   getSecondaryStatusCounts,
   parsePickupDateTime,
@@ -43,6 +44,7 @@ describe("order presentation selectors", () => {
     expect(selectPresentedOrders(orders, { secondaryStatus: "draft", now: NOW }).map(item => item.id)).toEqual(["draft"]);
     expect(selectPresentedOrders(orders, { secondaryStatus: "cancelled", now: NOW }).map(item => item.id)).toEqual(["cancelled"]);
     expect(getCurrentStageCounts(orders)).toEqual({ confirmed: 1, "in-production": 1, ready: 1 });
+    expect(getUpcomingOrderCount(orders)).toBe(3);
     expect(getSecondaryStatusCounts(orders)).toEqual({ draft: 1, cancelled: 1 });
   });
 

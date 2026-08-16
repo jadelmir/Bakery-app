@@ -47,7 +47,9 @@ positive production-output event for the resulting finished good.
 
 The system SHALL mark made-to-order finished goods as allocated to their order
 and SHALL leave made-ahead output available for future fulfillment. Available
-finished-good quantity SHALL exclude allocated output.
+finished-good quantity SHALL exclude allocated output. Finished goods SHALL be
+created by production output or an approved output workflow, not by the basic
+Ingredients/Retail supplies add-item form.
 
 #### Scenario: Made-to-order output is allocated
 

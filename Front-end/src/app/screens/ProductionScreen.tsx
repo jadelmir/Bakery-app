@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AlertTriangle, Check, Clock, Timer as TimerIcon, Pause, Play, Sparkles } from "lucide-react";
+import { AlertTriangle, Check, Clock, Timer as TimerIcon, Pause, Play, Plus, Sparkles } from "lucide-react";
 import { buildStarterPlans } from "../planning";
 import { DEFAULT_FLOWS, type ProductionFlow, calculateTaskDependencyStatus, type ProductionTask } from "../production";
 import { ProductionFlowBuilder } from "../components/production/ProductionFlowBuilder";
@@ -56,111 +56,100 @@ export function ScheduleTaskCard({
   );
 }
 
-export function FlowBuilder({ flows = DEFAULT_FLOWS, onSaveFlow }: { flows?: ProductionFlow[]; onSaveFlow?: (flow: ProductionFlow) => void }) {
+export function FlowBuilder({ flows = DEFAULT_FLOWS, onSaveFlow }: { flows?: ProductionFlow[]; onSaveFlow?: (flow: ProductionFlow) => void | Promise<void> }) {
   const [localFlows, setLocalFlows] = useState<ProductionFlow[]>(flows);
   const [selectedId, setSelectedId] = useState(flows[0]?.id || DEFAULT_FLOWS[0].id);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreatingFlow, setIsCreatingFlow] = useState(false);
 
   useEffect(() => {
     setLocalFlows(flows);
   }, [flows]);
 
   const selected = localFlows.find(flow => flow.id === selectedId) || localFlows[0] || DEFAULT_FLOWS[0];
-  const incomplete = selected.steps.filter(step => step.enabled && (!step.time || !step.instructions));
 
-  const update = (patch: Partial<ProductionFlow>) => {
-    const updated = localFlows.map(flow => flow.id === selected.id ? { ...flow, ...patch } : flow);
+  const resetToDefault = () => {
+    const defaultFlow = DEFAULT_FLOWS.find(flow => flow.id === selected.id || flow.recipe === selected.recipe);
+    if (!defaultFlow) return;
+    const updated = localFlows.map(flow => flow.id === selected.id ? { ...defaultFlow, steps: defaultFlow.steps.map(step => ({ ...step })) } : flow);
     setLocalFlows(updated);
-    const target = updated.find(f => f.id === selected.id);
-    if (target && onSaveFlow) onSaveFlow(target);
+    if (onSaveFlow) onSaveFlow(defaultFlow);
+    setIsModalOpen(false);
   };
 
-  const duplicate = () => {
-    const copy = { ...selected, id: `${selected.id}-copy`, name: `${selected.name} Copy`, isDefault: false, steps: selected.steps.map(step => ({ ...step })) };
-    const updated = [...localFlows, copy];
-    setLocalFlows(updated);
-    setSelectedId(copy.id);
-    if (onSaveFlow) onSaveFlow(copy);
+  const openFlow = (flowId: string) => {
+    setSelectedId(flowId);
+    setIsCreatingFlow(false);
+    setIsModalOpen(true);
+  };
+
+  const openNewFlow = () => {
+    setIsCreatingFlow(true);
+    setIsModalOpen(true);
   };
 
   return (
     <div className="space-y-4">
       <div className="bg-[#EAF2F8] rounded-[12px] p-3 text-xs text-[#4B6F8C] flex justify-between items-center flex-wrap gap-2">
         <span><b>Production Flow Builder.</b> Customize multi-step baking flows, day offsets, and prerequisite dependencies.</span>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="h-8 px-3 rounded-[8px] bg-[#7A3E24] text-white text-xs font-bold hover:bg-[#934E2E] transition-colors"
-        >
-          Edit in Flow Builder Modal
-        </button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto">
+      <div aria-label="Production flows" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button
+          onClick={openNewFlow}
+          type="button"
+          aria-label="Add flow"
+          className="min-h-[180px] rounded-2xl border-2 border-dashed border-[#C7A48E] bg-[#FFF9F5] p-5 text-left transition-all hover:border-[#B4643B] hover:bg-[#FFF4ED] flex flex-col items-center justify-center gap-3"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F3DED1] text-[#7A3E24]">
+            <Plus size={22} aria-hidden="true" />
+          </span>
+          <span className="text-base font-extrabold text-[#7A3E24]">Add flow</span>
+          <span className="text-center text-xs font-semibold text-[#8B6A58]">Start with a blank production flow.</span>
+        </button>
         {localFlows.map(flow => (
           <button
             key={flow.id}
-            onClick={() => setSelectedId(flow.id)}
-            className={`h-9 px-3 rounded-full text-xs font-bold whitespace-nowrap ${flow.id === selected.id ? "bg-[#7A3E24] text-white" : "bg-white border border-[#E5DDD3] text-[#6F655E]"}`}
+            onClick={() => openFlow(flow.id)}
+            type="button"
+            aria-pressed={flow.id === selected.id}
+            className={`min-h-[180px] rounded-2xl border p-5 text-left transition-all ${flow.id === selected.id ? "border-[#B4643B] bg-[#FFF9F5] shadow-sm ring-1 ring-[#B4643B]/20" : "border-[#E5DDD3] bg-white hover:border-[#C7A48E] hover:bg-[#FFFCF9]"}`}
           >
-            {flow.name}
+            <span className="flex items-start justify-between gap-3">
+              <span className={`text-base font-extrabold ${flow.id === selected.id ? "text-[#7A3E24]" : "text-[#2F2925]"}`}>{flow.name}</span>
+              <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${flow.isDefault ? "bg-[#FAF1EB] text-[#7A3E24]" : "bg-[#F6F0E8] text-[#6F655E]"}`}>{flow.isDefault ? "Default" : "Custom"}</span>
+            </span>
+            <span className="mt-3 block text-sm text-[#6F655E]">{flow.recipe}</span>
+            <span className="mt-6 flex gap-2 text-xs font-bold text-[#988D84]">
+              <span>{flow.steps.length} steps</span>
+              <span aria-hidden="true">·</span>
+              <span>{flow.steps.filter(step => step.enabled).length} active</span>
+            </span>
           </button>
         ))}
-      </div>
-
-      <div className="bg-white rounded-[14px] border border-[#E5DDD3] p-4 space-y-3">
-        <div className="flex justify-between gap-3 flex-wrap items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-[11px] font-bold text-[#988D84] uppercase">Flow name</label>
-            <input value={selected.name} onChange={event => update({ name: event.target.value })} className="mt-1 w-full h-10 rounded-[8px] border border-[#E5DDD3] px-3 text-sm" />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setIsModalOpen(true)} className="h-10 px-3.5 rounded-[8px] bg-[#FAF1EB] text-[#7A3E24] text-xs font-bold border border-[#E5DDD3]">Open Full Builder</button>
-            <button onClick={duplicate} className="h-10 px-3 rounded-[8px] bg-[#F3DED1] text-[#7A3E24] text-xs font-bold">Duplicate</button>
-          </div>
-        </div>
-
-        <p className="text-xs text-[#6F655E]">Assigned recipe: <b>{selected.recipe}</b></p>
-        {incomplete.length > 0 ? (
-          <div className="rounded-[10px] bg-[#FCE9E7] p-3 text-xs font-semibold text-[#B8443C]">{incomplete.length} enabled step{incomplete.length === 1 ? " is" : "s are"} missing timing or instructions and will not generate a valid plan.</div>
-        ) : (
-          <div className="rounded-[10px] bg-[#E8F3EB] p-3 text-xs font-semibold text-[#3F7A55]">All enabled steps have scheduling details.</div>
-        )}
-
-        <div className="space-y-2">
-          {selected.steps.map((step, index) => (
-            <div key={step.id || index} className="rounded-[10px] border border-[#F0E9E0] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-bold text-[#2F2925]">{index + 1}. {step.name}</p>
-                <label className="text-xs text-[#6F655E]">
-                  <input type="checkbox" checked={step.enabled} onChange={() => update({ steps: selected.steps.map(item => item.id === step.id ? { ...item, enabled: !item.enabled } : item) })} className="mr-1" />
-                  Enabled
-                </label>
-              </div>
-              <p className="text-xs text-[#988D84] mt-1">
-                {step.dayOffset === 0 ? "Pickup day" : `${Math.abs(step.dayOffset)} day${Math.abs(step.dayOffset) === 1 ? "" : "s"} before`} at {step.time} · {step.instructions}
-              </p>
-              {step.dependsOn && (
-                <span className="inline-block mt-1.5 text-[10px] font-semibold text-[#B7791F] bg-[#FFF4D8] px-2 py-0.5 rounded">
-                  Prerequisite: {selected.steps.find(s => s.id === step.dependsOn)?.name || step.dependsOn}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
 
       {isModalOpen && (
         <ProductionFlowBuilder
           isOpen={isModalOpen}
-          flow={selected}
-          recipeName={selected.recipe}
-          onClose={() => setIsModalOpen(false)}
-          onSave={(savedFlow) => {
-            const updated = localFlows.map(f => f.id === savedFlow.id ? savedFlow : f);
-            setLocalFlows(updated);
-            if (onSaveFlow) onSaveFlow(savedFlow);
+          flow={isCreatingFlow ? undefined : selected}
+          availableFlows={localFlows}
+          recipeName={isCreatingFlow ? undefined : selected.recipe}
+          onClose={() => {
             setIsModalOpen(false);
+            setIsCreatingFlow(false);
           }}
+          onSave={async (savedFlow) => {
+            await onSaveFlow?.(savedFlow);
+            const updated = isCreatingFlow
+              ? [...localFlows, savedFlow]
+              : localFlows.map(f => f.id === savedFlow.id ? savedFlow : f);
+            setLocalFlows(updated);
+            setSelectedId(savedFlow.id);
+            setIsModalOpen(false);
+            setIsCreatingFlow(false);
+          }}
+          onResetDefault={resetToDefault}
         />
       )}
     </div>
@@ -180,7 +169,7 @@ export function ProductionScreen({
   onTaskUpdate: (id: string, patch: Partial<Task>) => void;
   starterBuilds: ReturnType<typeof buildStarterPlans>;
   flows?: ProductionFlow[];
-  onSaveFlow?: (flow: ProductionFlow) => void;
+  onSaveFlow?: (flow: ProductionFlow) => void | Promise<void>;
 }) {
   const [view, setView] = useState<"today" | "tomorrow" | "calendar">("today");
   const [showFlows, setShowFlows] = useState(false);

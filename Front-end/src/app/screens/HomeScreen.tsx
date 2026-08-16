@@ -1,26 +1,27 @@
-import { useState } from "react";
-import type { Task, Order, Screen } from "../types";
+import { useMemo, useState } from "react";
+import type { Task, Screen } from "../types";
 import {
-  TASKS, ORDERS,
-  TASK_STATUS, TASK_URGENCY, ORDER_STATUS, PAYMENT_STATUS,
-  CAT_COLORS, pickupDateKey, dateKey,
+  TASK_STATUS, TASK_URGENCY,
+  CAT_COLORS, dateKey, displayTime,
 } from "../constants";
 import { Chip } from "../components/shared/Chip";
 import { SectionHeader } from "../components/shared/SectionHeader";
-import { notificationsFor } from "../reporting";
+import { HomeOrderCalendar } from "../components/home/HomeOrderCalendar";
 import {
   selectUnpaidCustomerSummary,
-  selectActiveStarterInfo,
+  selectDashboard,
+  selectFinances,
+  selectHomeOrderCalendar,
+  selectInventory,
 } from "../state/selectors";
 import type { BakeryDomainSnapshot } from "../domain/types";
 import {
   Plus, Bell, AlertTriangle,
   DollarSign,
-  Calendar,
   Check,
   Clock, Store,
   Sparkles, TrendingUp, ExternalLink,
-  Timer, Droplets,
+  Timer,
 } from "lucide-react";
 
 // ─── Task Card ──────────────────────────────────────────────────────────────
@@ -93,43 +94,10 @@ export function TaskCard({ task, onComplete }: { task: Task; onComplete: (id: st
 
 // ─── Order Card ─────────────────────────────────────────────────────────────
 
-export function OrderCard({ order, onClick }: { order: Order; onClick?: () => void }) {
-  const balance = order.total - order.paid;
-  return (
-    <div
-      onClick={onClick}
-      className="bg-white rounded-[14px] border border-[#E5DDD3] p-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.99]"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-['DM_Mono',monospace] text-[#988D84]">{order.id}</span>
-            <Chip cfg={ORDER_STATUS[order.status]} />
-          </div>
-          <p className="font-bold text-[#2F2925] mt-1 text-sm">{order.customer}</p>
-          <p className="text-xs text-[#6F655E] mt-0.5 line-clamp-1">
-            {order.items.map(i => `${i.qty}x ${i.product}`).join(", ")}
-          </p>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <p className="font-bold text-[#2F2925]">${order.total}</p>
-          <div className="mt-1 flex justify-end"><Chip cfg={PAYMENT_STATUS[order.paymentStatus]} /></div>
-          {balance > 0 && <p className="text-xs text-[#B8443C] font-bold mt-0.5">-${balance} owed</p>}
-        </div>
-      </div>
-      <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#F0E9E0]">
-        <Calendar size={11} className="text-[#B4643B]" />
-        <span className="text-xs text-[#6F655E]">{order.pickup} · {order.pickupTime}</span>
-        {order.notes && <span className="text-xs text-[#988D84] italic ml-auto truncate max-w-[140px]">"{order.notes}"</span>}
-      </div>
-    </div>
-  );
-}
-
 // ─── Home Screen ────────────────────────────────────────────────────────────
 
-export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate, onAddOrder }: { bakeryName?: string; snapshot?: BakeryDomainSnapshot; onNavigate?: (screen: Screen) => void; onAddOrder?: () => void }) {
-  const [tasks, setTasks] = useState<Task[]>(TASKS);
+export function HomeScreen({ bakeryName = "Bakery", snapshot, onNavigate, onAddOrder }: { bakeryName?: string; snapshot?: BakeryDomainSnapshot; onNavigate?: (screen: Screen) => void; onAddOrder?: () => void }) {
+  const [completedTaskIds, setCompletedTaskIds] = useState<ReadonlySet<string>>(new Set());
   const [showNotifications, setShowNotifications] = useState(false);
   const [taskCategoryFilter, setTaskCategoryFilter] = useState<string>("all");
 
@@ -137,17 +105,55 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
   const currentWeekday = now.toLocaleDateString("en-US", { weekday: "long" });
   const currentDateString = now.toLocaleDateString("en-US", { month: "long", day: "numeric" });
 
-  const unpaidInfo = snapshot ? selectUnpaidCustomerSummary(snapshot) : { unpaidTotal: ORDERS.reduce((s, o) => s + (o.total - o.paid), 0), summary: "Reed Family $56 · Priya Nair $29 · James Okonkwo $18" };
-  const starterInfo = snapshot ? selectActiveStarterInfo(snapshot) : { name: "Earl", subtitle: "Need 350g for #024 · Feed Earl tonight by 8 PM" };
-  const storefrontSlug = snapshot?.storefront?.slug || "jadore-bakery";
+  const dashboard = snapshot ? selectDashboard(snapshot) : undefined;
+  const finances = snapshot ? selectFinances(snapshot) : undefined;
+  const unpaidInfo = snapshot ? selectUnpaidCustomerSummary(snapshot) : undefined;
+  const storefrontSlug = snapshot?.storefront?.slug;
+
+  const tasks = useMemo<Task[]>(() => {
+    if (!snapshot) return [];
+    return Object.values(snapshot.tasksById)
+      .sort((left, right) => left.scheduledAt.localeCompare(right.scheduledAt))
+      .map(task => ({
+        ...task,
+        time: displayTime(task.scheduledAt),
+        urgency: task.status !== "completed" && task.status !== "cancelled" && new Date(task.scheduledAt).getTime() < now.getTime() ? "overdue" as const : undefined,
+      }));
+  }, [now, snapshot]).map(task => completedTaskIds.has(task.id) ? { ...task, status: "completed" as const } : task);
+
+  const activeOrderCount = dashboard?.activeOrders.length ?? 0;
+  const productionLabel = dashboard?.activeOrders.some(order => order.status === "in-production")
+    ? "In Production"
+    : activeOrderCount > 0 ? "Orders Scheduled" : "No Active Orders";
+  const revenue = finances?.revenue ?? 0;
+  const profit = finances?.profit ?? 0;
+  const margin = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
 
   const done = tasks.filter(t => t.status === "completed").length;
   const overdue = tasks.filter(t => t.urgency === "overdue");
-  const unpaidTotal = unpaidInfo.unpaidTotal;
-  const notifications = notificationsFor(unpaidTotal);
+  const unpaidTotal = unpaidInfo?.unpaidTotal ?? 0;
+
+  const notifications = useMemo(() => {
+    if (!snapshot) return [];
+    const next: { id: string; title: string; detail: string }[] = [];
+    if (overdue.length > 0) {
+      next.push({ id: "overdue-tasks", title: "Overdue production tasks", detail: overdue.map(task => task.title).join(", ") });
+    }
+    selectInventory(snapshot).shortages.slice(0, 3).forEach(shortage => {
+      next.push({ id: `shortage-${shortage.itemId}`, title: `${shortage.name} shortage`, detail: `Need ${shortage.shortage}${shortage.unit} for scheduled production.` });
+    });
+    if (unpaidTotal > 0 && unpaidInfo) {
+      next.push({ id: "unpaid-balance", title: "Unpaid balance", detail: unpaidInfo.summary });
+    }
+    const nextOrder = selectHomeOrderCalendar(snapshot).flatMap(day => day.orders)[0];
+    if (nextOrder) {
+      next.push({ id: `pickup-${nextOrder.id}`, title: "Upcoming pickup", detail: `${nextOrder.customerName} · ${nextOrder.pickupDate} at ${nextOrder.pickupTime}` });
+    }
+    return next;
+  }, [overdue, unpaidInfo, unpaidTotal, snapshot]);
 
   const complete = (id: string) =>
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: "completed" } : t));
+    setCompletedTaskIds(previous => new Set([...previous, id]));
 
   const filteredTasks = tasks.filter(t => {
     if (taskCategoryFilter === "all") return true;
@@ -155,7 +161,14 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
   });
 
   const nextPendingTask = tasks.find(t => t.status === "pending" || t.status === "in-progress");
-  const progressPercent = Math.round((done / tasks.length) * 100);
+  const progressPercent = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
+
+  const tomorrowKey = useMemo(() => {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return dateKey(tomorrow);
+  }, [now]);
+  const tomorrowTasks = tasks.filter(task => task.scheduledAt && dateKey(task.scheduledAt) === tomorrowKey && !["completed", "cancelled"].includes(task.status)).slice(0, 3);
 
   return (
     <div className="px-4 py-6 max-w-4xl mx-auto space-y-6 pb-28 lg:pb-10">
@@ -166,12 +179,12 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[11px] font-extrabold uppercase tracking-widest text-white/70">{currentWeekday}</span>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#E8F3EB] text-[#3F7A55]">
-                In Production
+                {productionLabel}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{currentDateString} · {bakeryName} 🍞</h1>
             <p className="text-xs sm:text-sm text-white/80 mt-1">
-              4 active orders in queue · {tasks.length} tasks scheduled for today
+              {activeOrderCount} active order{activeOrderCount === 1 ? "" : "s"} in queue · {tasks.length} task{tasks.length === 1 ? "" : "s"} scheduled for today
             </p>
           </div>
 
@@ -189,7 +202,7 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
               className="relative w-10 h-10 rounded-[12px] bg-white/15 border border-white/20 text-white flex items-center justify-center hover:bg-white/25 transition-colors"
             >
               <Bell size={18} />
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-[#B8443C] rounded-full ring-2 ring-[#7A3E24]" />
+              {notifications.length > 0 ? <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-[#B8443C] rounded-full ring-2 ring-[#7A3E24]" /> : null}
             </button>
           </div>
         </div>
@@ -201,7 +214,7 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
               <span className="text-xs font-extrabold text-[#7A3E24] uppercase tracking-wider">Alerts &amp; Notifications</span>
               <span className="text-[10px] text-[#988D84] font-semibold">{notifications.length} new</span>
             </div>
-            {notifications.map(notification => (
+            {notifications.length === 0 ? <p className="p-4 text-sm text-[#6F655E]">No new notifications.</p> : notifications.map(notification => (
               <div className="p-3.5 hover:bg-[#FBF8F3] transition-colors" key={notification.id}>
                 <p className="text-sm font-bold text-[#2F2925]">{notification.title}</p>
                 <p className="text-xs text-[#6F655E] mt-0.5">{notification.detail}</p>
@@ -210,6 +223,9 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
           </section>
         )}
       </div>
+
+      {/* Primary order calendar */}
+      <HomeOrderCalendar snapshot={snapshot} onNavigate={onNavigate} />
 
       {/* Production Progress Bar Widget */}
       <div className="bg-white rounded-[20px] border border-[#E5DDD3] p-5 shadow-xs space-y-3">
@@ -256,19 +272,6 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
           </div>
         )}
 
-        <div className="bg-[#FCE9E7] border border-[#B8443C]/25 rounded-[16px] p-4 flex items-start gap-3 shadow-xs">
-          <div className="w-9 h-9 rounded-[10px] bg-[#B8443C]/10 text-[#B8443C] flex items-center justify-center flex-shrink-0 mt-0.5">
-            <Droplets size={18} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-extrabold text-[#B8443C]">Starter Alert</p>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-[#B8443C] text-white rounded-full uppercase font-mono">Starter Alert</span>
-            </div>
-            <p className="text-xs text-[#B8443C]/90 mt-0.5">{starterInfo.subtitle}</p>
-          </div>
-        </div>
-
         {unpaidTotal > 0 && (
           <div className="bg-[#FFF4D8] border border-[#B7791F]/30 rounded-[16px] p-4 flex items-start gap-3 shadow-xs">
             <div className="w-9 h-9 rounded-[10px] bg-[#B7791F]/15 text-[#B7791F] flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -279,7 +282,7 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
                 <p className="text-sm font-extrabold text-[#B7791F]">${unpaidTotal} unpaid balance</p>
                 <span className="text-[10px] font-bold px-2 py-0.5 bg-[#B7791F] text-white rounded-full uppercase font-mono">Unpaid Balance</span>
               </div>
-              <p className="text-xs text-[#B7791F]/90 mt-0.5">{unpaidInfo.summary}</p>
+              <p className="text-xs text-[#B7791F]/90 mt-0.5">{unpaidInfo?.summary}</p>
             </div>
           </div>
         )}
@@ -292,9 +295,9 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
             <span className="text-[11px] font-bold uppercase tracking-wider">Revenue</span>
             <TrendingUp size={14} className="text-[#3F7A55]" />
           </div>
-          <p className="text-2xl font-extrabold text-[#2F2925] font-['DM_Mono',monospace]">$172</p>
+          <p className="text-2xl font-extrabold text-[#2F2925] font-['DM_Mono',monospace]">${revenue}</p>
           <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 bg-[#E8F3EB] text-[#3F7A55] rounded-full">
-            +18% this week
+            Recorded total
           </span>
         </div>
 
@@ -303,9 +306,9 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
             <span className="text-[11px] font-bold uppercase tracking-wider">Profit</span>
             <DollarSign size={14} className="text-[#F3DED1]" />
           </div>
-          <p className="text-2xl font-extrabold text-white font-['DM_Mono',monospace]">$126</p>
+          <p className="text-2xl font-extrabold text-white font-['DM_Mono',monospace]">${profit}</p>
           <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 bg-white/20 text-white rounded-full">
-            73% margin
+            {margin}% margin
           </span>
         </div>
 
@@ -320,7 +323,7 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
       </div>
 
       {/* Public Storefront Banner Card */}
-      <div className="bg-gradient-to-r from-[#FAF1EB] to-[#F6F0E8] rounded-[20px] border border-[#E5DDD3] p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {storefrontSlug && <div className="bg-gradient-to-r from-[#FAF1EB] to-[#F6F0E8] rounded-[20px] border border-[#E5DDD3] p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-[14px] bg-[#7A3E24] text-white flex items-center justify-center font-extrabold text-xl flex-shrink-0 shadow-sm">
             <Store size={22} />
@@ -346,7 +349,7 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
         >
           <ExternalLink size={13} /> View Storefront
         </a>
-      </div>
+      </div>}
 
       {/* Today's Tasks Timeline with Category Filter */}
       <section>
@@ -380,31 +383,19 @@ export function HomeScreen({ bakeryName = "J'adore Bakery", snapshot, onNavigate
         </div>
       </section>
 
-      {/* Upcoming Orders */}
-      <section>
-        <SectionHeader title="Upcoming Orders" />
-        <div className="space-y-2.5">
-          {ORDERS.map(o => <OrderCard key={o.id} order={o} />)}
-        </div>
-      </section>
-
       {/* Tomorrow's Prep */}
       <section>
         <SectionHeader title="Tomorrow's Prep" />
         <div className="bg-white rounded-[18px] border border-[#E5DDD3] divide-y divide-[#F0E9E0] shadow-xs overflow-hidden">
-          {[
-            { dot: "#7A3E24", title: "Bake Sourdough Loaves", sub: "From cold fermentation · #024 · 06:30 AM" },
-            { dot: "#B4643B", title: "Build starter", sub: "For Sourdough Loaves and Focaccia · Start by 07:00 AM" },
-            { dot: "#B8443C", title: "Kirkland Organic Flour — 4kg short", sub: "Needed for upcoming Sourdough Loaf and Focaccia orders", danger: true },
-          ].map((item, i) => (
-            <div key={i} className="flex items-start gap-3 p-4 hover:bg-[#FBF8F3] transition-colors">
-              <div className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: item.dot }} />
+          {tomorrowTasks.length > 0 ? tomorrowTasks.map(task => (
+            <div key={task.id} className="flex items-start gap-3 p-4 hover:bg-[#FBF8F3] transition-colors">
+              <div className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: CAT_COLORS[task.category] ?? "#988D84" }} />
               <div>
-                <p className="text-sm font-bold text-[#2F2925]">{item.title}</p>
-                <p className={`text-xs mt-0.5 ${item.danger ? "text-[#B8443C] font-semibold" : "text-[#6F655E]"}`}>{item.sub}</p>
+                <p className="text-sm font-bold text-[#2F2925]">{task.title}</p>
+                <p className="text-xs mt-0.5 text-[#6F655E]">{task.product}{task.orderId ? ` · ${task.orderId}` : ""} · {task.time}</p>
               </div>
             </div>
-          ))}
+          )) : <p className="p-4 text-sm text-[#6F655E]">No prep scheduled for tomorrow.</p>}
         </div>
       </section>
     </div>

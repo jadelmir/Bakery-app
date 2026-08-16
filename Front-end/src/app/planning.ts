@@ -5,9 +5,9 @@ export type StarterProfile = { id: string; name: string; currentRetained: number
 export type StarterContributor = { orderId: string; orderItemId: string; product: string; usableAmount: number };
 export type StarterBuildOverride = Partial<Pick<StarterBuild, "seedAmount" | "flourAmount" | "waterAmount" | "retainedAmount">>;
 export type StarterBuild = { id: string; profileId: string; peakWindow: string; contributors: StarterContributor[]; recommended: { seedAmount: number; flourAmount: number; waterAmount: number; retainedAmount: number }; seedAmount: number; flourAmount: number; waterAmount: number; retainedAmount: number; usableAmount: number; totalAmount: number; insufficientSeed: boolean; override?: StarterBuildOverride };
-export type InventoryItem = { id: string; name: string; unit: string; onHand: number; kind: "ingredient" | "packaging" };
+export type InventoryItem = { id: string; name: string; unit: string; onHand: number; kind: "ingredient" | "packaging" | "finished_good" };
 export type RequirementLine = { itemId: string; name: string; unit: string; required: number; available: number; shortage: number; orderId?: string; source: "recipe" | "starter-build" | "packaging" };
-export type InventoryTransaction = { id: string; sourceKey: string; itemId: string; quantityChange: number; reason: "task-completed" | "order-completed" | "restock" | "adjustment" };
+export type InventoryTransaction = { id: string; sourceKey: string; itemId: string; quantityChange: number; reason: "task-completed" | "order-completed" | "restock" | "adjustment" | "purchase" | "production-usage" | "production-output" | "reservation" };
 export type DeductionTrigger = "task-completion" | "order-completion";
 
 export const DEFAULT_STARTER_PROFILE: StarterProfile = { id: "earl", name: "Earl", currentRetained: 80, lastFedAt: "2026-07-28T18:00:00.000Z", hydrationPercent: 100, defaultRatio: { seed: 1, flour: 3, water: 3 }, retainedTarget: 40 };

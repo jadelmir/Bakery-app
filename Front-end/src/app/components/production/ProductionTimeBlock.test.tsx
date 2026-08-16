@@ -83,7 +83,7 @@ describe("ProductionTimeBlock", () => {
   it("reveals existing task-level exception controls and starter details", () => {
     const { onTaskStartTimer, onTaskSkip } = renderBlock();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show task details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Actions & notes" }));
     expect(screen.getByText("Retain 40g · total build 700g")).toBeVisible();
     fireEvent.click(screen.getAllByRole("button", { name: /Start Timer/ })[0]);
     expect(onTaskStartTimer).toHaveBeenCalledWith("loaves");

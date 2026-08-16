@@ -57,7 +57,7 @@ export function RecordPaymentDialog({
       const input: RecordPaymentInput = {
         bakeryId: invoice.bakeryId,
         operationId: `record-payment-${invoice.id}-${Date.now()}`,
-        paymentId: `pay-${Date.now()}`,
+        paymentId: globalThis.crypto?.randomUUID?.() ?? `00000000-0000-4000-8000-${Date.now().toString(16).slice(-12).padStart(12, "0")}`,
         invoiceId: invoice.id,
         paymentMethodType,
         paymentMethodId: selectedMethod?.id,

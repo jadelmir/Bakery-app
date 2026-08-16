@@ -28,6 +28,38 @@ test.describe("Production Task Workspace & Execution", () => {
     await expect(page.getByRole("button", { name: "baking", exact: true })).toBeVisible();
   });
 
+  test("opens the timeline-first flow builder and protects an unsaved draft", async ({ page }) => {
+    await logIn(page);
+    await page.getByRole("button", { name: /^Production/i }).first().click();
+    await page.getByRole("button", { name: "Flow Builder" }).click();
+    await page.getByRole("button", { name: /Standard Sourdough Loaf/ }).click();
+
+    const builder = page.getByRole("dialog", { name: /production flow/i });
+    await expect(builder.locator("h2")).toContainText(/production flow/i);
+    await expect(builder.getByRole("heading", { name: "Flow timeline" })).toBeVisible();
+    await expect(builder.getByRole("heading", { name: "Step details" })).toBeVisible();
+
+    await builder.getByRole("button", { name: "Add step" }).click();
+    await expect(builder.getByText("New step", { exact: true })).toBeVisible();
+    await builder.getByRole("button", { name: "Cancel" }).click();
+    await expect(builder.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeVisible();
+    await builder.getByRole("button", { name: "Keep editing" }).click();
+    await expect(builder.getByRole("heading", { name: "Step details" })).toBeVisible();
+  });
+
+  test("saves a valid custom step from the full builder", async ({ page }) => {
+    await logIn(page);
+    await page.getByRole("button", { name: /^Production/i }).first().click();
+    await page.getByRole("button", { name: "Flow Builder" }).click();
+    await page.getByRole("button", { name: /Standard Sourdough Loaf/ }).click();
+
+    const builder = page.getByRole("dialog", { name: /production flow/i });
+    await builder.getByRole("button", { name: "Add step" }).click();
+    await builder.getByLabel("Baker instructions").fill("Finish the custom bakery step.");
+    await builder.getByRole("button", { name: "Save Production Flow" }).click();
+    await expect(page.getByRole("dialog", { name: /production flow/i })).toHaveCount(0);
+  });
+
   test("starts and pauses a task live execution timer", async ({ page }) => {
     await logIn(page);
     await page.getByRole("button", { name: /^Production/i }).first().click();

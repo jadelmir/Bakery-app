@@ -5,8 +5,8 @@ import type { Order, PaymentStatus, Task } from "../types";
 import { ORDERS, ORDER_STATUS } from "../constants";
 import {
   getCurrentStageCounts,
+  getUpcomingOrderCount,
   isCompletedOrder,
-  isCurrentOrder,
   selectPresentedOrders,
   type CurrentOrderStatus,
   type OrdersPrimaryView,
@@ -73,7 +73,7 @@ export function OrdersScreen({ onAddOrder, onTransitionOrder, onMarkOrderPaid, t
   const selected = selectedOrderId ? orders.find(order => order.id === selectedOrderId) ?? null : null;
   const currentCounts = useMemo(() => getCurrentStageCounts(orders), [orders]);
   const viewCounts = useMemo(() => ({
-    current: orders.filter(isCurrentOrder).length,
+    current: getUpcomingOrderCount(orders),
     completed: orders.filter(isCompletedOrder).length,
   }), [orders]);
   const products = useMemo(() => Array.from(new Set(

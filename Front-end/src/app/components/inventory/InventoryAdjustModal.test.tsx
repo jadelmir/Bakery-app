@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InventoryAdjustModal, type InventoryCommand } from "./InventoryAdjustModal";
 
 const item = { id: "flour", name: "Flour", unit: "g", onHand: 8000 };
+const editableItem = { ...item, kind: "ingredient" as const, minLevel: 1000, packageQuantity: 10000, packagePrice: 17 };
 afterEach(cleanup);
 
 describe("InventoryAdjustModal", () => {
@@ -34,5 +35,26 @@ describe("InventoryAdjustModal", () => {
     fireEvent.change(screen.getByLabelText("Package base-unit quantity"), { target: { value: "1000" } });
     fireEvent.click(screen.getByRole("button", { name: "Record entry" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Network unavailable");
+  });
+
+  it("opens directly on item editing and submits updated details", async () => {
+    const onCommand = vi.fn().mockResolvedValue(undefined);
+    render(<InventoryAdjustModal isOpen onClose={vi.fn()} items={[editableItem]} initialAction="edit-item" onCommand={onCommand} />);
+    fireEvent.change(screen.getByLabelText("Editable inventory item name"), { target: { value: "Whole wheat flour" } });
+    fireEvent.change(screen.getByLabelText("Editable inventory minimum level"), { target: { value: "2000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({ type: "edit-item", name: "Whole wheat flour", minLevel: 2000 })));
+    expect(await screen.findByRole("status")).toHaveTextContent("Inventory item updated");
+  });
+
+  it("requires confirmation before deleting an item and closes after success", async () => {
+    const onCommand = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    render(<InventoryAdjustModal isOpen onClose={onClose} items={[editableItem]} initialAction="edit-item" onCommand={onCommand} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete item" }));
+    expect(screen.getByText("Its stock and purchase history will be preserved.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete item" }));
+    await waitFor(() => expect(onCommand).toHaveBeenCalledWith({ type: "delete-item", itemId: "flour" }));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

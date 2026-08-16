@@ -49,6 +49,15 @@ describe("invitation Edge Function core", () => {
     expect(sendEmail.mock.calls[0][1]).toContain("?invitation=");
   });
 
+  it("keeps the local invitation callback on the browser's active localhost origin", async () => {
+    const sendEmail = vi.fn(async () => undefined);
+    await handleInviteRequest(
+      { ...validRequest, origin: "http://localhost:5173" },
+      dependencies({ sendEmail }),
+    );
+    expect(sendEmail.mock.calls[0][1]).toMatch(/^http:\/\/localhost:5173\/\?invitation=/);
+  });
+
   it.each([
     ["23505", 409, "already exists"],
     ["P0001", 429, "rate limit"],

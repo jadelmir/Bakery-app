@@ -1,5 +1,9 @@
-import React, { useState, useId } from "react";
+import React, { useMemo, useState, useId } from "react";
 import { X, Plus, Trash2, BookOpen, DollarSign, Scale, Layers } from "lucide-react";
+import {
+  InventoryItemCreateDialog,
+  type InventoryItemDraft,
+} from "../inventory/InventoryItemCreateDialog";
 
 export interface RecipeIngredientInput {
   inventoryItemId: string;
@@ -14,13 +18,14 @@ export interface RecipeEditorDialogProps {
     yield: string;
     sellingPrice: number;
     batchCost?: number;
-    flowId?: string;
+    flowId?: string | null;
     ingredients: readonly RecipeIngredientInput[];
   } | null;
   inventoryItems?: readonly {
     id: string;
     name: string;
     unit: string;
+    kind?: "ingredient" | "packaging" | "finished_good";
     packageQuantity?: number;
     packagePrice?: number;
     unitCost?: number;
@@ -36,18 +41,29 @@ export interface RecipeEditorDialogProps {
     yield: string;
     sellingPrice: number;
     batchCost: number;
-    flowId: string;
+    flowId: string | null;
     ingredients: { inventoryItemId: string; quantity: number; cost: number }[];
-  }) => void;
+  }) => void | Promise<void>;
+  onCreateInventoryItem?: (
+    draft: InventoryItemDraft,
+  ) => Promise<{
+    id: string;
+    name: string;
+    unit: string;
+    kind?: "ingredient" | "packaging" | "finished_good";
+    packageQuantity?: number;
+    packagePrice?: number;
+    unitCost?: number;
+  } | void> | {
+    id: string;
+    name: string;
+    unit: string;
+    kind?: "ingredient" | "packaging" | "finished_good";
+    packageQuantity?: number;
+    packagePrice?: number;
+    unitCost?: number;
+  } | void;
 }
-
-const DEFAULT_INVENTORY_ITEMS = [
-  { id: "flour", name: "Kirkland Organic Flour", unit: "g", unitCost: 0.002 },
-  { id: "water", name: "Water", unit: "ml", unitCost: 0.000057 },
-  { id: "salt", name: "Salt", unit: "g", unitCost: 0.003 },
-  { id: "oil", name: "Olive Oil", unit: "ml", unitCost: 0.008 },
-  { id: "bag", name: "Bakery Bags", unit: "pcs", unitCost: 0.15 },
-];
 
 const DEFAULT_FLOWS = [
   { id: "flow-sourdough", name: "Standard Sourdough Loaf" },
@@ -56,19 +72,25 @@ const DEFAULT_FLOWS = [
 
 export function RecipeEditorDialog({
   recipe,
-  inventoryItems = DEFAULT_INVENTORY_ITEMS,
+  inventoryItems = [],
   productionFlows = DEFAULT_FLOWS,
   onClose,
   onSave,
+  onCreateInventoryItem,
 }: RecipeEditorDialogProps) {
   const titleId = useId();
-  const availableItems = inventoryItems.length > 0 ? inventoryItems : DEFAULT_INVENTORY_ITEMS;
+  const [createdItems, setCreatedItems] = useState<NonNullable<RecipeEditorDialogProps["inventoryItems"]>>([]);
+  const availableItems = useMemo(() => [...inventoryItems, ...createdItems], [inventoryItems, createdItems]);
   const availableFlows = productionFlows.length > 0 ? productionFlows : DEFAULT_FLOWS;
 
   const [name, setName] = useState(recipe?.name ?? "");
   const [recipeYield, setRecipeYield] = useState(recipe?.yield ?? "1 batch");
   const [sellingPrice, setSellingPrice] = useState<number | "">(recipe?.sellingPrice ?? 12.0);
-  const [flowId, setFlowId] = useState(recipe?.flowId ?? availableFlows[0]?.id ?? "");
+  const [flowId, setFlowId] = useState<string | null>(recipe?.flowId ?? null);
+  const [createItemOpen, setCreateItemOpen] = useState(false);
+  const [createItemForRow, setCreateItemForRow] = useState<number | null>(null);
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [ingredients, setIngredients] = useState<
     { inventoryItemId: string; quantity: number; customUnitCost?: number }[]
   >(() => {
@@ -79,22 +101,17 @@ export function RecipeEditorDialog({
         customUnitCost: ing.quantity > 0 && ing.cost !== undefined ? ing.cost / ing.quantity : undefined,
       }));
     }
-    return [
-      {
-        inventoryItemId: availableItems[0]?.id ?? "flour",
-        quantity: 500,
-      },
-    ];
+    return [];
   });
 
   const getItemUnitCost = (itemId: string): number => {
     const item = availableItems.find((i) => i.id === itemId);
-    if (!item) return 0.002;
+    if (!item) return 0;
     if (item.unitCost !== undefined) return item.unitCost;
     if ("packageQuantity" in item && item.packageQuantity && item.packageQuantity > 0 && "packagePrice" in item && item.packagePrice !== undefined) {
       return item.packagePrice / item.packageQuantity;
     }
-    return 0.002;
+    return 0;
   };
 
   const getLineCost = (line: { inventoryItemId: string; quantity: number; customUnitCost?: number }): number => {
@@ -117,15 +134,39 @@ export function RecipeEditorDialog({
   };
 
   const handleAddIngredient = () => {
+    if (availableItems.length === 0) {
+      setCreateItemForRow(null);
+      setCreateItemOpen(true);
+      return;
+    }
     const nextItem = availableItems.find(
       (item) => !ingredients.some((ing) => ing.inventoryItemId === item.id)
-    ) ?? availableItems[0];
-    setIngredients([...ingredients, { inventoryItemId: nextItem?.id ?? "flour", quantity: 100 }]);
+    );
+    setIngredients([...ingredients, { inventoryItemId: nextItem?.id ?? "", quantity: 100 }]);
   };
 
   const handleRemoveIngredient = (index: number) => {
-    if (ingredients.length === 1) return;
     setIngredients(ingredients.filter((_, i) => i !== index));
+  };
+
+  const handleCreateItem = async (draft: InventoryItemDraft) => {
+    if (!onCreateInventoryItem) {
+      throw new Error("Add this item from Inventory first, then return to the recipe.");
+    }
+    const created = await onCreateInventoryItem(draft);
+    if (!created) return;
+    setCreatedItems((current) => [...current, created]);
+    setIngredients((current) => {
+      const emptyIndex = createItemForRow ?? current.findIndex((line) => !line.inventoryItemId);
+      if (emptyIndex >= 0 && emptyIndex < current.length) {
+        return current.map((line, index) =>
+          index === emptyIndex ? { ...line, inventoryItemId: created.id } : line,
+        );
+      }
+      return [...current, { inventoryItemId: created.id, quantity: 100 }];
+    });
+    setCreateItemOpen(false);
+    setCreateItemForRow(null);
   };
 
   const handleUpdateIngredient = (
@@ -144,9 +185,14 @@ export function RecipeEditorDialog({
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (ingredients.some((line) => !line.inventoryItemId)) {
+      setFormError("Select an inventory item for each ingredient line, or remove the empty line.");
+      return;
+    }
+    setFormError("");
 
     const compiledIngredients = ingredients.map((line) => ({
       inventoryItemId: line.inventoryItemId,
@@ -154,16 +200,23 @@ export function RecipeEditorDialog({
       cost: Number(getLineCost(line).toFixed(4)),
     }));
 
-    onSave({
-      id: recipe?.id,
-      name: name.trim(),
-      yield: recipeYield.trim() || "1 batch",
-      sellingPrice: numericPrice,
-      batchCost: Number(totalBatchCost.toFixed(2)),
-      flowId: flowId || availableFlows[0]?.id || "",
-      ingredients: compiledIngredients,
-    });
-    onClose();
+    setIsSaving(true);
+    try {
+      await onSave({
+        id: recipe?.id,
+        name: name.trim(),
+        yield: recipeYield.trim() || "1 batch",
+        sellingPrice: numericPrice,
+        batchCost: Number(totalBatchCost.toFixed(2)),
+        flowId,
+        ingredients: compiledIngredients,
+      });
+      onClose();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Could not save recipe.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -258,16 +311,18 @@ export function RecipeEditorDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#6F655E] uppercase mb-1">
-                Production Flow *
+              <label htmlFor="recipe-flow-select" className="block text-xs font-bold text-[#6F655E] uppercase mb-1">
+                Production Flow
               </label>
               <div className="relative">
                 <Layers className="absolute left-3 top-2.5 text-[#988D84]" size={16} />
                 <select
-                  value={flowId}
-                  onChange={(e) => setFlowId(e.target.value)}
+                  id="recipe-flow-select"
+                  value={flowId ?? ""}
+                  onChange={(e) => setFlowId(e.target.value || null)}
                   className="w-full h-10 pl-9 pr-3 border border-[#E5DDD3] rounded-xl text-sm bg-white text-[#2F2925] focus:outline-none focus:border-[#7A3E24]"
                 >
+                  <option value="">Assign later</option>
                   {availableFlows.map((flow) => (
                     <option key={flow.id} value={flow.id}>
                       {flow.name}
@@ -293,6 +348,17 @@ export function RecipeEditorDialog({
               </button>
             </div>
 
+            <button
+              type="button"
+              onClick={() => {
+                setCreateItemForRow(null);
+                setCreateItemOpen(true);
+              }}
+              className="text-xs font-bold text-[#6F655E] underline decoration-[#D9CEC4] underline-offset-2 hover:text-[#7A3E24]"
+            >
+              Create new inventory item
+            </button>
+
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {ingredients.map((line, index) => {
                 const matchedItem = availableItems.find((i) => i.id === line.inventoryItemId);
@@ -311,11 +377,20 @@ export function RecipeEditorDialog({
                         onChange={(e) => handleUpdateIngredient(index, "inventoryItemId", e.target.value)}
                         className="w-full h-9 px-2.5 border border-[#E5DDD3] rounded-lg text-xs bg-white text-[#2F2925] focus:outline-none focus:border-[#7A3E24]"
                       >
-                        {availableItems.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name} ({item.unit})
-                          </option>
-                        ))}
+                        <option value="">Select inventory item</option>
+                        {(["ingredient", "packaging"] as const).map((kind) => {
+                          const items = availableItems.filter((item) => (item.kind ?? "ingredient") === kind);
+                          if (items.length === 0) return null;
+                          return (
+                            <optgroup key={kind} label={kind === "ingredient" ? "Ingredients" : "Retail supplies"}>
+                              {items.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} ({item.unit})
+                                </option>
+                              ))}
+                            </optgroup>
+                          );
+                        })}
                       </select>
                     </div>
 
@@ -347,13 +422,8 @@ export function RecipeEditorDialog({
                     {/* Delete button */}
                     <button
                       type="button"
-                      disabled={ingredients.length <= 1}
                       onClick={() => handleRemoveIngredient(index)}
-                      className={`p-1.5 rounded-lg transition-colors ${
-                        ingredients.length <= 1
-                          ? "text-[#D5CBC1] cursor-not-allowed"
-                          : "text-[#988D84] hover:text-rose-600 hover:bg-rose-50"
-                      }`}
+                      className="p-1.5 rounded-lg text-[#988D84] transition-colors hover:text-rose-600 hover:bg-rose-50"
                       aria-label="Remove ingredient line"
                     >
                       <Trash2 size={16} />
@@ -363,6 +433,8 @@ export function RecipeEditorDialog({
               })}
             </div>
           </div>
+
+          {formError && <p role="alert" className="rounded-lg bg-[#FCE9E7] p-3 text-xs font-semibold text-[#B8443C]">{formError}</p>}
 
           {/* Live Cost & Margin Preview Badges */}
           <div className="p-4 bg-[#F6F0E8] rounded-xl border border-[#E5DDD3] grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
@@ -399,19 +471,31 @@ export function RecipeEditorDialog({
             <button
               type="button"
               onClick={onClose}
+              disabled={isSaving}
               className="flex-1 h-11 border border-[#E5DDD3] rounded-xl text-xs font-bold text-[#6F655E] hover:bg-[#F6F0E8] transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
+              disabled={isSaving}
               className="flex-1 h-11 bg-[#7A3E24] text-white rounded-xl text-xs font-bold hover:bg-[#934E2E] transition-colors shadow-sm"
             >
-              {recipe ? "Save Changes" : "Create Recipe"}
+              {isSaving ? "Saving..." : recipe ? "Save Changes" : "Create Recipe"}
             </button>
           </div>
         </form>
       </div>
+      <InventoryItemCreateDialog
+        isOpen={createItemOpen}
+        onClose={() => {
+          setCreateItemOpen(false);
+          setCreateItemForRow(null);
+        }}
+        onSubmit={handleCreateItem}
+        title="Create inventory item"
+        description="Add an ingredient or retail supply, then use it in this recipe."
+      />
     </div>
   );
 }

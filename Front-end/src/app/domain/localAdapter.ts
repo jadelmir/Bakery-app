@@ -11,6 +11,8 @@ import type {
   CartItem,
   CreateCustomerInput,
   CreateIngredientInput,
+  CreateIngredientResult,
+  DeleteIngredientResult,
   CreateInvoiceInput,
   CreateInvoiceItemInput,
   CreateOrderResult,
@@ -58,6 +60,8 @@ import type {
   StorefrontResult,
   TaskExecutionState,
   TransitionOrderStatusResult,
+  UpdateIngredientInput,
+  UpdateIngredientResult,
   UpdateCustomerInput,
   UpdateInvoiceInput,
   UpdatePaymentMethodInput,
@@ -74,7 +78,7 @@ export interface SessionLocalAdapterOptions {
   readonly failures?: Partial<Record<DomainOperation, AdapterFailure>>;
 }
 
-type MutationResult = CreateOrderResult | TransitionOrderStatusResult | MarkOrderPaidResult | UpdateTaskResult | RecipeResult | CustomerResult | InvoiceResult | StorefrontResult | OnlineOrderResult | ProductionFlowResult | InventoryResult;
+type MutationResult = CreateOrderResult | TransitionOrderStatusResult | MarkOrderPaidResult | UpdateTaskResult | RecipeResult | CustomerResult | InvoiceResult | StorefrontResult | OnlineOrderResult | ProductionFlowResult | InventoryResult | CreateIngredientResult | UpdateIngredientResult | DeleteIngredientResult;
 
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -505,10 +509,10 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
           id: input.ingredientId,
           name: input.name,
           unit: input.unit,
-          onHand: input.packageQuantity,
+          onHand: 0,
           minLevel: input.minLevel,
           kind: input.kind,
-          status: input.packageQuantity <= 0 ? "out-of-stock" : input.packageQuantity <= input.minLevel ? "low" : "in-stock",
+          status: "out-of-stock",
           packageQuantity: input.packageQuantity,
           packagePrice: input.packagePrice,
           unitCost: input.packageQuantity > 0 ? input.packagePrice / input.packageQuantity : 0,
@@ -518,6 +522,57 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
           inventoryById: { ...snapshot.inventoryById, [newItem.id]: newItem },
         };
         return { ok: true, data: { kind: "ingredient-created", operationId: input.operationId, changes: { inventoryItems: [newItem] } } };
+      });
+    },
+
+    async updateIngredient(input: UpdateIngredientInput) {
+      return resultFor("create-order", () => {
+        const loaded = snapshotFor(input.bakeryId);
+        if (!loaded.ok) return loaded;
+        const snapshot = loaded.data;
+        const existing = snapshot.inventoryById[input.ingredientId];
+        if (!existing) return { ok: false, error: validation("Inventory item not found", "ingredientId") };
+        const unitCost = input.packageQuantity > 0 ? input.packagePrice / input.packageQuantity : 0;
+        const updatedItem: DomainInventoryItem = {
+          ...existing,
+          name: input.name,
+          unit: input.unit,
+          minLevel: input.minLevel,
+          kind: input.kind,
+          packageQuantity: input.packageQuantity,
+          packagePrice: input.packagePrice,
+          unitCost,
+          status: existing.onHand <= 0 ? "out-of-stock" : existing.onHand <= input.minLevel ? "low" : "in-stock",
+        };
+        snapshots[input.bakeryId] = {
+          ...snapshot,
+          inventoryById: { ...snapshot.inventoryById, [updatedItem.id]: updatedItem },
+        };
+        const data: UpdateIngredientResult = {
+          kind: "ingredient-updated",
+          operationId: input.operationId,
+          changes: { inventoryItems: [updatedItem] },
+        };
+        return { ok: true, data };
+      });
+    },
+
+    async deleteIngredient(input) {
+      return resultFor("create-order", () => {
+        const loaded = snapshotFor(input.bakeryId);
+        if (!loaded.ok) return loaded;
+        const snapshot = loaded.data;
+        if (!snapshot.inventoryById[input.ingredientId]) return { ok: false, error: validation("Inventory item not found", "ingredientId") };
+        const { [input.ingredientId]: _removed, ...remainingItems } = snapshot.inventoryById;
+        snapshots[input.bakeryId] = { ...snapshot, inventoryById: remainingItems };
+        return {
+          ok: true,
+          data: {
+            kind: "ingredient-deleted",
+            operationId: input.operationId,
+            changes: { inventoryItems: [] },
+          },
+        };
       });
     },
 
@@ -703,7 +758,7 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
         const name = input.name ?? existing.name;
         const yieldVal = input.yield ?? existing.yield;
         const sellingPrice = input.sellingPrice ?? existing.sellingPrice;
-        const flowId = input.flowId ?? existing.flowId;
+        const flowId = input.flowId === undefined ? existing.flowId : input.flowId;
 
         let batchCost = existing.batchCost;
         let recipeIngredients = existing.ingredients;
@@ -1604,7 +1659,7 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
         const data: ProductionFlowResult = {
           kind: "production-flow-mutated",
           operationId: input.operationId,
-          changes: { flows: [] },
+          changes: { deletedFlowIds: [input.flowId] },
         };
         operationResults.set(operationKey(input.bakeryId, input.operationId), data);
         return { ok: true, data: clone(data) };

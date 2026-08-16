@@ -6,7 +6,6 @@ import {
   BookOpen,
   ChefHat,
   DollarSign,
-  Droplets,
   FileText,
   Home,
   Leaf,
@@ -41,13 +40,30 @@ const sidebarIcons: Record<WorkspacePrimaryRouteId, typeof Home> = {
 };
 
 const sidebarBadges: Partial<Record<WorkspacePrimaryRouteId, string>> = {
-  orders: "$103",
   inventory: "3",
 };
 
-export const SIDEBAR_NAV = workspaceRouteRegistry
-  .filter((route): route is typeof route & { id: WorkspacePrimaryRouteId } => route.kind === "primary")
-  .map((route) => ({ Icon: sidebarIcons[route.id], label: route.label, routeId: route.id, badge: sidebarBadges[route.id] }));
+const SIDEBAR_ROUTE_ORDER: readonly WorkspacePrimaryRouteId[] = [
+  "home",
+  "orders",
+  "recipes",
+  "inventory",
+  "customers",
+  "production",
+  "finances",
+  "invoices",
+  "storefront",
+  "settings",
+];
+
+export const SIDEBAR_NAV = SIDEBAR_ROUTE_ORDER.map((routeId) => {
+  const route = workspaceRouteRegistry.find((candidate) => candidate.id === routeId);
+  if (!route) {
+    throw new Error(`Missing sidebar route: ${routeId}`);
+  }
+
+  return { Icon: sidebarIcons[routeId], label: route.label, routeId, badge: sidebarBadges[routeId] };
+});
 
 export function Sidebar({
   bakeryName = "J'adore Bakery",
@@ -57,6 +73,7 @@ export function Sidebar({
   onAddOrder,
   onLogout,
   onManageStores,
+  upcomingOrderCount = 0,
 }: {
   bakeryName?: string;
   activeMembership?: BakeryMembership;
@@ -67,6 +84,7 @@ export function Sidebar({
   onAddOrder: () => void;
   onLogout: () => void;
   onManageStores?: () => void;
+  upcomingOrderCount?: number;
 }) {
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const location = useLocation();
@@ -128,16 +146,19 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto">
+        <span id="orders-upcoming-count" className="sr-only">{upcomingOrderCount} upcoming orders</span>
         {SIDEBAR_NAV.map(({ Icon, label, routeId, badge }) => {
           const path = workspacePath(routeId);
           const active = currentRoute?.id === routeId || location.pathname.startsWith(`${path}/`);
+          const displayBadge = routeId === "orders" ? String(upcomingOrderCount) : badge;
           return (
             <button key={routeId} onClick={() => navigate(path)} aria-current={active ? "page" : undefined}
+              aria-describedby={routeId === "orders" ? "orders-upcoming-count" : undefined}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] transition-all text-left ${active ? "bg-[#FAF1EB] text-[#7A3E24]" : "text-[#6F655E] hover:bg-[#F6F0E8] hover:text-[#2F2925]"}`}>
               <Icon size={16} className="flex-shrink-0" />
               <span className={`text-sm flex-1 ${active ? "font-bold" : "font-semibold"}`}>{label}</span>
-              {badge && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${routeId === "inventory" ? "bg-[#FCE9E7] text-[#B8443C]" : "text-[#B8443C]"}`}>{badge}</span>
+              {displayBadge && (
+                <span aria-hidden={routeId === "orders"} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${routeId === "inventory" ? "bg-[#FCE9E7] text-[#B8443C]" : "text-[#B8443C]"}`}>{displayBadge}</span>
               )}
             </button>
           );
@@ -157,13 +178,6 @@ export function Sidebar({
           <LogOut size={14} aria-hidden="true" />
           Log out
         </button>
-        <div className="bg-[#FCE9E7] rounded-[12px] p-3">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Droplets size={12} className="text-[#B8443C]" />
-            <p className="text-[11px] font-bold text-[#B8443C]">Starter Short — 70g</p>
-          </div>
-          <p className="text-[11px] text-[#B8443C]/80">280g / 350g needed · feed by 8 PM</p>
-        </div>
       </div>
     </aside>
   );

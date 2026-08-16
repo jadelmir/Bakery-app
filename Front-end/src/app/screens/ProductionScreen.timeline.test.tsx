@@ -90,7 +90,7 @@ describe("ProductionScreen time-block timeline", () => {
       timelineItems.findIndex(item => item?.includes("Mix Dough")),
     );
 
-    fireEvent.click(within(starterBlock).getByRole("button", { name: "Show task details" }));
+    fireEvent.click(within(starterBlock).getByRole("button", { name: "Actions & notes" }));
     fireEvent.click(within(starterBlock).getAllByRole("button", { name: "Toggle details" })[0]);
     expect(within(starterBlock).getByText("Build starter for the loaves.")).toBeVisible();
   });

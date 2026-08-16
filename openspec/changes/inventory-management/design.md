@@ -20,8 +20,10 @@ recipes, orders, production tasks, and workspace selection.
 
 **Goals:**
 
-- Track raw ingredients, retail supplies, and finished goods in one
-  bakery-scoped inventory model.
+- Track raw ingredients and retail supplies in one bakery-scoped inventory
+  model, with finished goods represented only when production creates output.
+- Keep recipe composition linked to bakery inventory records and allow a
+  missing item to be created inline.
 - Receive purchased stock by package and convert it to a canonical base unit.
 - Create prep-day reservations without changing physical on-hand quantity.
 - Deduct raw and retail-supply usage once at the final packaging checkpoint.
@@ -58,24 +60,47 @@ stopped from receiving new writes. It will not be deleted in the first
 migration. This avoids a destructive migration while removing ambiguity from
 new code.
 
-### 2. Expand inventory item categories
+### 2. Keep the inventory entry model simple
 
-The existing `kind` field will support:
+The user-facing add-item flow will offer only two categories:
 
 - `ingredient`
-- `packaging`
-- `finished_good`
+- `packaging` (shown in the UI as **Retail supplies**)
 
-Finished goods are linked to a recipe/output definition. The recipe remains the
-stable product identity used by orders, while inventory events identify whether
-the output is allocated to an order or available for general sale.
+The existing `kind` field remains the storage contract so this simplification
+does not require renaming persisted data. Finished goods remain linked to a
+recipe/output definition and can be created by production output, but they are
+not manually added from the basic inventory form.
 
 All quantities use a canonical base unit per item (`g`, `ml`, or `unit`). A
 purchase records package count, package quantity, package price, and the
 resulting base quantity. UI inputs may use package units; ledger quantities
 remain base units.
 
-### 3. Separate reservation from consumption
+### 3. Make recipe creation inventory-backed
+
+Creating a recipe starts with an empty ingredient list. Each row must reference
+an item from the active bakery inventory; the editor must never fall back to
+sample items such as Organic Flour. The item picker groups real inventory items
+under Ingredients and Retail supplies. When the required item does not exist,
+the editor opens the shared create-inventory-item form and selects the newly
+created item when the form succeeds.
+
+The shared create form asks for item name, category, base unit, typical package
+quantity, package price, and an optional minimum level. It calculates a
+default base-unit cost; for example, 10,000 g at $17 produces $0.0017/g.
+Initial on-hand quantity starts at zero and receiving stock remains a separate
+action. After a successful save, the create form closes. Existing inventory
+cards open a focused item modal where members can edit those item details and
+switch directly to receiving, physical-count, or relative-adjustment actions
+for the selected item. A receipt may override the default price and updates
+weighted-average cost.
+
+Removing an item from the active inventory uses a confirmed soft archive. The
+item is hidden from active inventory lists and pickers, while its append-only
+stock and purchase history remain available for reporting and auditability.
+
+### 4. Separate reservation from consumption
 
 At the beginning of an order's prep day, the system creates or activates
 requirements/reservations for its recipe ingredients and retail supplies. A
@@ -101,7 +126,7 @@ If an order is cancelled before consumption, its reservation is released. If
 stock is insufficient, completion remains allowed, on-hand may go negative,
 and the workspace shows a clear shortage warning.
 
-### 4. Use weighted-average unit cost for current inventory value
+### 5. Use weighted-average unit cost for current inventory value
 
 Each purchase stores its unit cost. Current item cost uses a weighted-average
 calculation for remaining inventory; historical usage events retain the cost
@@ -111,7 +136,7 @@ when purchase prices vary without rewriting historical orders.
 The alternative is latest-cost pricing, which is simpler but causes abrupt
 margin changes and does not represent mixed-cost stock as well.
 
-### 5. Treat finance integration as two views, not two expenses
+### 6. Treat finance integration as two views, not two expenses
 
 Purchase events feed a `purchases`/cash-spend view. Production usage feeds COGS.
 Gross profit uses revenue minus COGS, while cash reporting separately shows
@@ -122,7 +147,7 @@ The existing finance screen is a local prototype, so the first implementation
 will add shared reporting selectors and persisted inventory-cost inputs rather
 than claiming full accounting support.
 
-### 6. Use an inventory-specific persisted adapter and atomic RPC boundary
+### 7. Use an inventory-specific persisted adapter and atomic RPC boundary
 
 Add a Supabase inventory adapter for snapshot loading, receiving, reservation
 state, physical counts, and packaging-checkpoint mutations. Multi-row balance,
@@ -134,12 +159,19 @@ offline prototype journeys. `BakeryWorkspace` will compose persisted inventory
 behavior with the existing local domain adapter in the same style currently
 used for persisted customer records.
 
-### 7. Make all member actions auditable
+### 8. Make all member actions auditable
 
 Any active bakery member may record inventory actions for now. Ledger rows are
 append-only from the application and cannot be deleted. Physical count
 corrections create explicit adjustment events. RLS remains bakery-scoped and
 the actor is recorded for future permission tightening.
+
+### 9. Preserve history when removing active items
+
+Inventory item deletion is an archive operation rather than a physical row
+delete. This preserves foreign-key references from ledger history and recipes,
+and keeps historical costs and stock events auditable. The UI requires an
+explicit confirmation before archiving the item.
 
 ## Risks / Trade-offs
 
@@ -182,5 +214,5 @@ the actor is recorded for future permission tightening.
 - Whether an order pickup should decrement allocated finished goods in the first
   release, or whether packaging completion is sufficient for the initial
   finished-good workflow.
-- Whether a recipe without an explicit finished-good inventory item should
-  automatically create one from the recipe identity.
+- Whether production should automatically create a finished-good inventory
+  record from the recipe identity when output is recorded.

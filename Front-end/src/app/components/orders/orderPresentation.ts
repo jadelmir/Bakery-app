@@ -96,6 +96,11 @@ export const isCurrentOrder = (order: Pick<Order, "status">) =>
 
 export const isCompletedOrder = (order: Pick<Order, "status">) => order.status === "completed";
 
+/** Count the current order queue shown as upcoming work in workspace navigation. */
+export function getUpcomingOrderCount(orders: readonly Order[]): number {
+  return orders.filter(isCurrentOrder).length;
+}
+
 export function getCurrentStageCounts(orders: readonly Order[]): Record<CurrentOrderStatus, number> {
   return orders.reduce<Record<CurrentOrderStatus, number>>((counts, order) => {
     if (isCurrentOrder(order)) counts[order.status as CurrentOrderStatus] += 1;

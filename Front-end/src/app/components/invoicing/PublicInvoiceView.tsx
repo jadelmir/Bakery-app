@@ -23,6 +23,7 @@ export interface PublicInvoiceViewProps {
   readonly invoice?: DomainInvoice;
   readonly paymentMethods?: readonly DomainPaymentMethod[];
   readonly onFetchInvoiceByToken?: (token: string) => Promise<DomainInvoice | undefined>;
+  readonly onFetchPublicInvoice?: (token: string) => Promise<{ invoice: DomainInvoice; paymentMethods: readonly DomainPaymentMethod[] } | undefined>;
 }
 
 const DEFAULT_PUBLIC_INVOICE: DomainInvoice = {
@@ -117,9 +118,11 @@ export function PublicInvoiceView({
   invoice: propInvoice,
   paymentMethods: propPaymentMethods,
   onFetchInvoiceByToken,
+  onFetchPublicInvoice,
 }: PublicInvoiceViewProps) {
   const [invoice, setInvoice] = useState<DomainInvoice | undefined>(propInvoice);
-  const [loading, setLoading] = useState(!propInvoice && Boolean(onFetchInvoiceByToken));
+  const [fetchedPaymentMethods, setFetchedPaymentMethods] = useState<readonly DomainPaymentMethod[] | undefined>(undefined);
+  const [loading, setLoading] = useState(!propInvoice && Boolean(onFetchInvoiceByToken || onFetchPublicInvoice));
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -127,6 +130,33 @@ export function PublicInvoiceView({
       setInvoice(propInvoice);
       setLoading(false);
       return;
+    }
+
+    if (onFetchPublicInvoice) {
+      let isMounted = true;
+      setLoading(true);
+      setNotFound(false);
+      onFetchPublicInvoice(publicToken)
+        .then((fetched) => {
+          if (!isMounted) return;
+          if (fetched) {
+            setInvoice(fetched.invoice);
+            setFetchedPaymentMethods(fetched.paymentMethods);
+          } else {
+            setInvoice(undefined);
+            setFetchedPaymentMethods([]);
+            setNotFound(true);
+          }
+        })
+        .catch(() => {
+          if (isMounted) setNotFound(true);
+        })
+        .finally(() => {
+          if (isMounted) setLoading(false);
+        });
+      return () => {
+        isMounted = false;
+      };
     }
 
     if (onFetchInvoiceByToken) {
@@ -138,7 +168,6 @@ export function PublicInvoiceView({
             if (fetched) {
               setInvoice(fetched);
             } else {
-              // Fallback to sample if token matches sample or testing
               setInvoice(DEFAULT_PUBLIC_INVOICE);
             }
           }
@@ -156,12 +185,9 @@ export function PublicInvoiceView({
       setInvoice(DEFAULT_PUBLIC_INVOICE);
       setLoading(false);
     }
-  }, [publicToken, propInvoice, onFetchInvoiceByToken]);
+  }, [publicToken, propInvoice, onFetchInvoiceByToken, onFetchPublicInvoice]);
 
-  const methods = (propPaymentMethods && propPaymentMethods.length > 0
-    ? propPaymentMethods
-    : DEFAULT_PAYMENT_METHODS
-  ).filter((m) => m.isEnabled);
+  const methods = (propPaymentMethods ?? fetchedPaymentMethods ?? DEFAULT_PAYMENT_METHODS).filter((m) => m.isEnabled);
 
   const handlePrint = () => {
     if (!invoice) return;

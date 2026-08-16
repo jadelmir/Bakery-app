@@ -75,9 +75,9 @@ export function InvoiceEditor({
     return [
       {
         id: `item-${Date.now()}`,
-        description: "Standard Sourdough Loaves",
-        quantity: 2,
-        unitPriceDollarsStr: "14.00",
+        description: "",
+        quantity: 1,
+        unitPriceDollarsStr: "0.00",
       },
     ];
   });
@@ -90,10 +90,12 @@ export function InvoiceEditor({
   const [discountDollarsStr, setDiscountDollarsStr] = useState<string>(
     invoice ? (invoice.discountCents / 100).toFixed(2) : "0.00"
   );
-  const [notes, setNotes] = useState<string>(invoice?.notes || "Thank you for your order!");
+  const [notes, setNotes] = useState<string>(invoice?.notes || "");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  const newEntityId = () => globalThis.crypto?.randomUUID?.() ?? `00000000-0000-4000-8000-${Date.now().toString(16).slice(-12).padStart(12, "0")}`;
 
   // Populate items from order if selected
   const handleOrderChange = (orderId: string) => {
@@ -194,7 +196,7 @@ export function InvoiceEditor({
         const createInput: CreateInvoiceInput = {
           bakeryId,
           operationId: `create-invoice-${Date.now()}`,
-          invoiceId: `inv-${Date.now()}`,
+          invoiceId: newEntityId(),
           customerId,
           orderId: selectedOrderId || undefined,
           issueDate,

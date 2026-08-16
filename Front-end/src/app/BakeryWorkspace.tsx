@@ -5,12 +5,9 @@ import {
   buildStarterPlans,
   calculateRequirements,
   DEFAULT_INVENTORY,
-  DEFAULT_STARTER_PROFILE,
   recordDeductions,
   type DeductionTrigger,
   type InventoryTransaction,
-  type StarterBuildOverride,
-  type StarterProfile,
 } from "./planning";
 import { createLocalBakeryAdapter } from "./domain/localAdapter";
 import { BakeryDomainProvider, useBakeryDomain, useBakeryDomainSelector } from "./state/provider";
@@ -27,10 +24,17 @@ import { Sidebar } from "./navigation/Sidebar";
 import { ReturnToBakerySelectorDialog } from "./navigation/ReturnToBakerySelectorDialog";
 import { BottomNav, FAB } from "./navigation/BottomNav";
 import { AddOrderModal } from "./components/orders/AddOrderModal";
+import { getUpcomingOrderCount } from "./components/orders/orderPresentation";
 import type { Screen } from "./types";
 import type { ManualOrderService, ManualOrderSnapshot } from "../lib/supabase/manualOrderAdapter";
 import { createSupabaseCustomerAdapter } from "../lib/supabase/customerAdapter";
+import { createSupabaseInventoryAdapter } from "../features/inventory/inventoryAdapter";
+import { createSupabaseProductionFlowAdapter } from "../features/production/productionFlowAdapter";
+import { createSupabaseRecipeAdapter } from "../features/recipes/recipeAdapter";
+import { createSupabaseInvoiceAdapter } from "../features/invoicing/invoiceAdapter";
 import type { OrderStatusTransition } from "./screens/OrdersScreen";
+import type { InventoryItemDraft } from "./components/inventory/InventoryItemCreateDialog";
+import type { InventoryBaseUnit } from "./domain/types";
 
 const USE_SYNTHETIC_FIXTURES =
   import.meta.env.MODE === "test" || import.meta.env.VITE_USE_MOCK_BACKEND === "true";
@@ -46,9 +50,6 @@ const LazyProductionScreen = lazy(() =>
 );
 const LazyInventoryScreen = lazy(() =>
   import("./screens/InventoryScreen").then(module => ({ default: module.InventoryScreen })),
-);
-const LazyStarterScreen = lazy(() =>
-  import("./screens/InventoryScreen").then(module => ({ default: module.StarterScreen })),
 );
 const LazyFinancesScreen = lazy(() =>
   import("./screens/FinancesScreen").then(module => ({ default: module.FinancesScreen })),
@@ -113,8 +114,8 @@ function BakeryWorkspaceInner({
 }) {
   const domainContext = useBakeryDomain();
   const snapshot = useBakeryDomainSelector(selectSnapshot);
-  const invoices = snapshot?.invoicesById ? Object.values(snapshot.invoicesById) : undefined;
-  const paymentMethods = snapshot?.paymentMethodsById ? Object.values(snapshot.paymentMethodsById) : undefined;
+  const invoices = snapshot?.invoicesById ? Object.values(snapshot.invoicesById) : [];
+  const paymentMethods = snapshot?.paymentMethodsById ? Object.values(snapshot.paymentMethodsById) : [];
   const domainCustomers = snapshot?.customersById ? Object.values(snapshot.customersById) : undefined;
   const bakeryId = activeMembership?.bakeryId ?? "bakery-north";
 
@@ -140,8 +141,6 @@ function BakeryWorkspaceInner({
       items: seedOrder.items.map((item, index) => ({ id: `${index}`, product: item.product, qty: item.qty })),
     });
   });
-  const [starterProfile, setStarterProfile] = useState<StarterProfile>(DEFAULT_STARTER_PROFILE);
-  const [starterOverrides, setStarterOverrides] = useState<Record<string, StarterBuildOverride>>({});
   const [deductionTrigger] = useState<DeductionTrigger>("task-completion");
   const [inventoryTransactions, setInventoryTransactions] = useState<InventoryTransaction[]>([]);
   useEffect(() => {
@@ -157,7 +156,7 @@ function BakeryWorkspaceInner({
       });
     return () => { mounted = false; };
   }, [activeMembership?.bakeryId, manualOrderService]);
-  const starterBuilds = useMemo(() => buildStarterPlans(productionTasks as unknown as ProductionTask[], starterProfile, starterProfile.defaultRatio, starterOverrides), [productionTasks, starterProfile, starterOverrides]);
+  const starterBuilds = useMemo(() => buildStarterPlans(productionTasks as unknown as ProductionTask[]), [productionTasks]);
   const recordTaskDeduction = (task: Task) => {
     if (deductionTrigger !== "task-completion" || task.status === "completed") return;
     const lines = calculateRequirements([task] as unknown as ProductionTask[], starterBuilds, DEFAULT_INVENTORY);
@@ -290,19 +289,21 @@ function BakeryWorkspaceInner({
     return { ...order, paid: updated.paid, paymentStatus: updated.paymentStatus };
   };
 
-  const [flows, setFlows] = useState<ProductionFlow[]>(DEFAULT_FLOWS);
-  const handleSaveFlow = (savedFlow: ProductionFlow) => {
-    setFlows(prev => {
-      const exists = prev.some(f => f.id === savedFlow.id);
-      if (exists) {
-        return prev.map(f => f.id === savedFlow.id ? savedFlow : f);
-      }
-      return [...prev, savedFlow];
+  const flows = useMemo<ProductionFlow[]>(() => {
+    const loadedFlows = Object.values(snapshot?.flowsById ?? {});
+    return loadedFlows.length > 0 ? loadedFlows : [...DEFAULT_FLOWS];
+  }, [snapshot]);
+  const handleSaveFlow = async (savedFlow: ProductionFlow) => {
+    const result = await domainContext.commands.saveProductionFlow({
+      bakeryId,
+      operationId: `save-production-flow-${savedFlow.id}-${Date.now()}`,
+      flow: savedFlow,
     });
+    if (!result.ok) throw new Error(result.error.message);
   };
 
   const domainOrders = useMemo(() => {
-    if (manualOrderSnapshot) {
+    if (!snapshot?.recipesById && manualOrderSnapshot) {
       const customerNames = new Map(manualOrderSnapshot.customers.map(customer => [customer.id, customer.name]));
       return manualOrderSnapshot.orders.map(order => ({
         id: order.id,
@@ -365,27 +366,26 @@ function BakeryWorkspaceInner({
   }, [manualOrderSnapshot, productionTasks]);
 
   const domainRecipes = useMemo(() => {
-    if (manualOrderSnapshot) {
-      return manualOrderSnapshot.recipes.map(recipe => ({
-        id: recipe.id,
-        name: recipe.name,
-        yield: recipe.yield,
-        batchCost: 0,
-        sellingPrice: recipe.sellingPrice,
-        flowId: "",
-        ingredients: [],
+    if (snapshot?.recipesById) {
+      return Object.values(snapshot.recipesById).map(r => ({
+        id: r.id,
+        name: r.name,
+        yield: r.yield,
+        batchCost: r.batchCost,
+        sellingPrice: r.sellingPrice,
+        flowId: r.flowId,
+        archived: r.archived,
+        ingredients: r.ingredients || [],
       }));
     }
-    if (!snapshot?.recipesById) return undefined;
-    return Object.values(snapshot.recipesById).map(r => ({
-      id: r.id,
-      name: r.name,
-      yield: r.yield,
-      batchCost: r.batchCost,
-      sellingPrice: r.sellingPrice,
-      flowId: r.flowId,
-      archived: r.archived,
-      ingredients: r.ingredients || [],
+    return manualOrderSnapshot?.recipes.map(recipe => ({
+      id: recipe.id,
+      name: recipe.name,
+      yield: recipe.yield,
+      batchCost: 0,
+      sellingPrice: recipe.sellingPrice,
+      flowId: "",
+      ingredients: [],
     }));
   }, [manualOrderSnapshot, snapshot]);
 
@@ -406,6 +406,36 @@ function BakeryWorkspaceInner({
       unitCost: i.unitCost || (i.packagePrice && i.packageQuantity ? i.packagePrice / i.packageQuantity : 0),
     }));
   }, [snapshot]);
+  const displayedInventoryTransactions = useMemo<InventoryTransaction[]>(() => {
+    if (!manualOrderService) return inventoryTransactions;
+    return Object.values(snapshot?.inventoryTransactionsById ?? {}).map(transaction => ({
+      id: transaction.id,
+      sourceKey: transaction.sourceKey,
+      itemId: transaction.itemId,
+      quantityChange: transaction.quantityChange,
+      reason: transaction.reason,
+    }));
+  }, [inventoryTransactions, manualOrderService, snapshot]);
+
+  const createInventoryItem = async (draft: InventoryItemDraft) => {
+    if (!adapter?.createIngredient) {
+      throw new Error("Inventory item creation is not available for this workspace.");
+    }
+    const result = await adapter.createIngredient({
+      bakeryId,
+      operationId: `create-inventory-item-${Date.now()}`,
+      ingredientId: globalThis.crypto?.randomUUID?.() ?? `inventory-${Date.now()}`,
+      name: draft.name,
+      unit: draft.unit,
+      packageQuantity: draft.packageQuantity,
+      packagePrice: draft.packagePrice,
+      minLevel: draft.minLevel,
+      kind: draft.kind,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    await domainContext.commands.load(bakeryId);
+    return result.data.changes.inventoryItems?.[0];
+  };
 
   return (
     <div className="flex h-screen bg-[#FBF8F3] overflow-hidden">
@@ -417,6 +447,7 @@ function BakeryWorkspaceInner({
         onAddOrder={() => setAddOrderOpen(true)}
         onLogout={onLogout}
         onManageStores={onManageStores}
+        upcomingOrderCount={getUpcomingOrderCount(domainOrders)}
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain"
@@ -465,30 +496,37 @@ function BakeryWorkspaceInner({
         {screen === "invoices"   && (
           <LazyInvoiceList
             invoices={invoices}
+            bakeryId={bakeryId}
             customers={domainCustomers}
             orders={domainOrders}
             paymentMethods={paymentMethods}
             onCreateInvoice={async (input) => {
-              if (adapter) await adapter.createInvoice(input);
-              void domainContext.commands.load(bakeryId);
+              if (!adapter) throw new Error("Invoice persistence is not available for this workspace.");
+              const result = await adapter.createInvoice(input);
+              if (!result.ok) throw new Error(result.error.message);
+              await domainContext.commands.load(bakeryId);
             }}
             onUpdateInvoice={async (input) => {
-              if (adapter) await adapter.updateInvoice(input);
-              void domainContext.commands.load(bakeryId);
+              if (!adapter) throw new Error("Invoice persistence is not available for this workspace.");
+              const result = await adapter.updateInvoice(input);
+              if (!result.ok) throw new Error(result.error.message);
+              await domainContext.commands.load(bakeryId);
             }}
             onRecordPayment={async (input) => {
-              if (adapter) await adapter.recordPayment(input);
-              void domainContext.commands.load(bakeryId);
+              if (!adapter) throw new Error("Invoice persistence is not available for this workspace.");
+              const result = await adapter.recordPayment(input);
+              if (!result.ok) throw new Error(result.error.message);
+              await domainContext.commands.load(bakeryId);
             }}
             onCancelInvoice={async (invoiceId) => {
-              if (adapter) {
-                await adapter.cancelInvoice({
-                  bakeryId,
-                  operationId: `cancel-inv-${invoiceId}-${Date.now()}`,
-                  invoiceId,
-                });
-              }
-              void domainContext.commands.load(bakeryId);
+              if (!adapter) throw new Error("Invoice persistence is not available for this workspace.");
+              const result = await adapter.cancelInvoice({
+                bakeryId,
+                operationId: `cancel-inv-${invoiceId}-${Date.now()}`,
+                invoiceId,
+              });
+              if (!result.ok) throw new Error(result.error.message);
+              await domainContext.commands.load(bakeryId);
             }}
             onOpenPaymentSettings={() => navigateToScreen("payment-settings")}
             onOpenPublicInvoice={(token) => {
@@ -501,13 +539,16 @@ function BakeryWorkspaceInner({
             paymentMethods={paymentMethods}
             onSave={async (methods) => {
               if (adapter) {
-                await adapter.updatePaymentMethods({
+                const result = await adapter.updatePaymentMethods({
                   bakeryId,
                   operationId: `update-pm-${Date.now()}`,
                   paymentMethods: methods,
                 });
+                if (!result.ok) throw new Error(result.error.message);
+              } else {
+                throw new Error("Payment settings persistence is not available for this workspace.");
               }
-              void domainContext.commands.load(bakeryId);
+              await domainContext.commands.load(bakeryId);
             }}
             onBack={() => navigateToScreen("invoices")}
           />
@@ -518,37 +559,66 @@ function BakeryWorkspaceInner({
           <LazyRecipeManager
             recipes={domainRecipes}
             inventoryItems={domainIngredients}
+            onCreateInventoryItem={createInventoryItem}
             productionFlows={flows}
             onSaveProductionFlow={handleSaveFlow}
             onAddRecipe={async (recipe) => {
-              if (adapter) {
-                await adapter.createRecipe({
-                  bakeryId,
-                  operationId: `create-recipe-${Date.now()}`,
-                  recipeId: `r-${Date.now()}`,
-                  name: recipe.name,
-                  yield: recipe.yield,
-                  sellingPrice: recipe.sellingPrice,
-                  flowId: recipe.flowId,
-                  ingredients: recipe.ingredients,
-                });
+              const recipeId = manualOrderService
+                ? globalThis.crypto?.randomUUID?.() ?? ""
+                : `r-${Date.now()}`;
+              const result = await domainContext.commands.createRecipe({
+                bakeryId,
+                operationId: `create-recipe-${Date.now()}`,
+                recipeId,
+                name: recipe.name,
+                yield: recipe.yield,
+                sellingPrice: recipe.sellingPrice,
+                flowId: recipe.flowId,
+                ingredients: recipe.ingredients,
+              });
+              if (!result.ok) throw new Error(result.error.message);
+              const savedRecipe = result.data.changes.recipes?.[0];
+              if (savedRecipe) {
+                setManualOrderSnapshot(current => current ? {
+                  ...current,
+                  recipes: [...current.recipes, {
+                    id: savedRecipe.id,
+                    name: savedRecipe.name,
+                    yield: savedRecipe.yield,
+                    sellingPrice: savedRecipe.sellingPrice,
+                  }],
+                } : current);
               }
-              void domainContext.commands.load(bakeryId);
             }}
             onUpdateRecipe={async (id, patch) => {
-              if (adapter) {
-                await adapter.updateRecipe({
-                  bakeryId,
-                  operationId: `update-recipe-${id}-${Date.now()}`,
-                  recipeId: id,
-                  name: patch.name,
-                  yield: patch.yield,
-                  sellingPrice: patch.sellingPrice,
-                  flowId: patch.flowId,
-                  ingredients: patch.ingredients,
-                });
+              const existingRecipe = snapshot?.recipesById[id];
+              if (!existingRecipe) {
+                throw new Error("The recipe could not be found. Please reload and try again.");
               }
-              void domainContext.commands.load(bakeryId);
+              const recipe = { ...existingRecipe, ...patch };
+              const result = await domainContext.commands.updateRecipe({
+                bakeryId,
+                operationId: `update-recipe-${id}-${Date.now()}`,
+                recipeId: id,
+                name: recipe.name,
+                yield: recipe.yield,
+                sellingPrice: recipe.sellingPrice,
+                flowId: recipe.flowId,
+                ingredients: recipe.ingredients,
+              });
+              if (!result.ok) throw new Error(result.error.message);
+              const savedRecipe = result.data.changes.recipes?.[0];
+              if (savedRecipe) {
+                setManualOrderSnapshot(current => current ? {
+                  ...current,
+                  recipes: current.recipes.map(recipe => recipe.id === savedRecipe.id ? {
+                    ...recipe,
+                    name: savedRecipe.name,
+                    yield: savedRecipe.yield,
+                    sellingPrice: savedRecipe.sellingPrice,
+                  } : recipe),
+                } : current);
+              }
             }}
           />
         )}
@@ -556,12 +626,92 @@ function BakeryWorkspaceInner({
           <LazyInventoryScreen
             tasks={displayedTasks}
             builds={starterBuilds}
-            transactions={inventoryTransactions}
+            transactions={displayedInventoryTransactions}
             ingredients={domainIngredients}
-            onOpenStarter={() => navigateToScreen("starter")}
+            onCreateInventoryItem={async (draft) => { await createInventoryItem(draft); }}
+            onUpdateInventoryItem={async (command) => {
+              if (!adapter?.updateIngredient) throw new Error("Inventory item editing is not available for this workspace.");
+              const result = await adapter.updateIngredient({
+                bakeryId,
+                operationId: `update-inventory-item-${command.itemId}-${Date.now()}`,
+                ingredientId: command.itemId,
+                name: command.name,
+                kind: command.kind,
+                unit: command.unit,
+                packageQuantity: command.packageQuantity,
+                packagePrice: command.packagePrice,
+                minLevel: command.minLevel,
+              });
+              if (!result.ok) throw new Error(result.error.message);
+              await domainContext.commands.load(bakeryId);
+            }}
+            onDeleteInventoryItem={async (command) => {
+              if (!adapter?.deleteIngredient) throw new Error("Inventory item deletion is not available for this workspace.");
+              const result = await adapter.deleteIngredient({
+                bakeryId,
+                operationId: `delete-inventory-item-${command.itemId}-${Date.now()}`,
+                ingredientId: command.itemId,
+              });
+              if (!result.ok) throw new Error(result.error.message);
+              await domainContext.commands.load(bakeryId);
+            }}
+            onReceivePurchase={async (command) => {
+              const operationId = `receive-${command.itemId}-${Date.now()}`;
+              const item = snapshot?.inventoryById?.[command.itemId];
+              const result = adapter?.receiveInventory
+                ? await adapter.receiveInventory({
+                  bakeryId,
+                  operationId,
+                  itemId: command.itemId,
+                  packageCount: command.packageCount,
+                  packageQuantity: command.packageQuantity,
+                  packageUnit: (item?.unit ?? "g") as InventoryBaseUnit,
+                  packagePriceCents: Math.round((command.packagePrice ?? item?.packagePrice ?? 0) * 100),
+                  sourceKey: operationId,
+                  invoiceReference: command.invoiceRef,
+                  notes: command.notes,
+                })
+                : adapter?.restockInventory
+                  ? await adapter.restockInventory({
+                    bakeryId,
+                    operationId,
+                    itemId: command.itemId,
+                    quantityAdded: command.baseQuantity,
+                    unitCost: command.packagePrice === undefined ? undefined : command.packagePrice / command.packageQuantity,
+                    notes: command.notes,
+                  })
+                  : undefined;
+              if (!result) throw new Error("Inventory receiving is not available for this workspace.");
+              if (!result.ok) throw new Error(result.error.message);
+              await domainContext.commands.load(bakeryId);
+            }}
+            onPhysicalCount={async (command) => {
+              if (!adapter?.adjustInventory) throw new Error("Physical counts are not available for this workspace.");
+              const result = await adapter.adjustInventory({
+                bakeryId,
+                operationId: `count-${command.itemId}-${Date.now()}`,
+                itemId: command.itemId,
+                newOnHand: command.count,
+                notes: command.notes,
+              });
+              if (!result.ok) throw new Error(result.error.message);
+              await domainContext.commands.load(bakeryId);
+            }}
+            onRelativeAdjustment={async (command) => {
+              if (!adapter?.adjustInventory) throw new Error("Inventory adjustments are not available for this workspace.");
+              const current = snapshot?.inventoryById?.[command.itemId]?.onHand ?? 0;
+              const result = await adapter.adjustInventory({
+                bakeryId,
+                operationId: `adjust-${command.itemId}-${Date.now()}`,
+                itemId: command.itemId,
+                newOnHand: current + command.quantityChange,
+                notes: command.notes,
+              });
+              if (!result.ok) throw new Error(result.error.message);
+              await domainContext.commands.load(bakeryId);
+            }}
           />
         )}
-        {screen === "starter"    && <LazyStarterScreen builds={starterBuilds} profile={starterProfile} onProfile={patch => setStarterProfile(current => ({ ...current, ...patch }))} onOverride={(id, patch) => setStarterOverrides(current => ({ ...current, [id]: { ...current[id], ...patch } }))} onBack={() => navigateToScreen("inventory")} />}
         {screen === "customers"  && (
           <LazyCustomerManager
             customers={domainCustomers}
@@ -593,7 +743,7 @@ function BakeryWorkspaceInner({
             }}
           />
         )}
-        {screen === "finances"   && <LazyFinancesScreen />}
+        {screen === "finances"   && <LazyFinancesScreen snapshot={snapshot} onNavigate={navigateToScreen} />}
         {screen === "settings"   && (
           <LazySettingsScreen
             membership={activeMembership}
@@ -656,7 +806,11 @@ export function BakeryWorkspace(props: {
                 ordersById: {},
                 orderItemsById: {},
                 tasksById: {},
-                inventoryTransactionsById: {},
+            inventoryTransactionsById: {},
+                invoicesById: {},
+                paymentsById: {},
+                invoiceEventsById: {},
+                paymentMethodsById: {},
               },
             },
           }
@@ -665,6 +819,10 @@ export function BakeryWorkspace(props: {
     if (!props.manualOrderService) return localAdapter;
 
     const customerAdapter = createSupabaseCustomerAdapter();
+    const inventoryAdapter = createSupabaseInventoryAdapter();
+    const productionFlowAdapter = createSupabaseProductionFlowAdapter();
+    const recipeAdapter = createSupabaseRecipeAdapter();
+    const invoiceAdapter = createSupabaseInvoiceAdapter();
     return {
       ...localAdapter,
       source: {
@@ -674,18 +832,48 @@ export function BakeryWorkspace(props: {
       async loadSnapshot(scope: { bakeryId: string }) {
         const localSnapshot = await localAdapter.loadSnapshot(scope);
         if (!localSnapshot.ok) return localSnapshot;
-        const customers = await customerAdapter.loadCustomers(scope);
+        const [customers, inventory, productionFlows, invoicing] = await Promise.all([
+          customerAdapter.loadCustomers(scope),
+          inventoryAdapter.loadInventory(scope.bakeryId),
+          productionFlowAdapter.loadFlows(scope),
+          invoiceAdapter.loadInvoicing(scope.bakeryId),
+        ]);
         if (!customers.ok) return customers;
+        if (!inventory.ok) return inventory;
+        if (!productionFlows.ok) return productionFlows;
+        if (!invoicing.ok) return invoicing;
+        const recipes = await recipeAdapter.loadRecipes(scope, inventory.data.items);
+        if (!recipes.ok) return recipes;
+        const mergedFlows = [...DEFAULT_FLOWS, ...productionFlows.data];
         return {
           ok: true as const,
           data: {
             ...localSnapshot.data,
             customersById: Object.fromEntries(customers.data.map(customer => [customer.id, customer])),
+            inventoryById: Object.fromEntries(inventory.data.items.map(item => [item.id, item])),
+            inventoryTransactionsById: Object.fromEntries(inventory.data.transactions.map(transaction => [transaction.id, transaction])),
+            flowsById: Object.fromEntries(mergedFlows.map(flow => [flow.id, flow])),
+            recipesById: Object.fromEntries(recipes.data.map(recipe => [recipe.id, recipe])),
+            ...invoicing.data,
           },
         };
       },
       createCustomer: customerAdapter.createCustomer,
       updateCustomer: customerAdapter.updateCustomer,
+      createIngredient: inventoryAdapter.createIngredient,
+      updateIngredient: inventoryAdapter.updateIngredient,
+      deleteIngredient: inventoryAdapter.deleteIngredient,
+      receiveInventory: inventoryAdapter.receiveInventory,
+      adjustInventory: inventoryAdapter.adjustInventory,
+      saveProductionFlow: productionFlowAdapter.saveProductionFlow,
+      deleteProductionFlow: productionFlowAdapter.deleteProductionFlow,
+      createRecipe: recipeAdapter.createRecipe,
+      updateRecipe: recipeAdapter.updateRecipe,
+      createInvoice: invoiceAdapter.createInvoice,
+      updateInvoice: invoiceAdapter.updateInvoice,
+      recordPayment: invoiceAdapter.recordPayment,
+      cancelInvoice: invoiceAdapter.cancelInvoice,
+      updatePaymentMethods: invoiceAdapter.updatePaymentMethods,
     };
   }, [bakeryId, props.manualOrderService]);
 

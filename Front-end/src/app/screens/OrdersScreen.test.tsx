@@ -89,19 +89,19 @@ describe("OrdersScreen workflow queue", () => {
     expect(screen.queryByRole("button", { name: /Open order order-confirmed/ })).not.toBeInTheDocument();
   });
 
-  it("sorts the pickup queue deterministically from ISO pickup datetimes", () => {
+  it("sorts the current queue newest-first by creation timestamp", () => {
     renderOrders({
       orders: [
-        order({ id: "later", customer: "Later", pickup: "2026-08-04", pickupTime: "09:00" }),
-        order({ id: "overdue", customer: "Overdue", pickup: "2026-08-03", pickupTime: "08:00" }),
-        order({ id: "next", customer: "Next", pickup: "2026-08-03", pickupTime: "10:00" }),
+        order({ id: "later", customer: "Later", pickup: "2026-08-04", pickupTime: "09:00", createdAt: "2026-08-03T15:00:00.000Z" }),
+        order({ id: "overdue", customer: "Overdue", pickup: "2026-08-03", pickupTime: "08:00", createdAt: "2026-08-03T14:00:00.000Z" }),
+        order({ id: "next", customer: "Next", pickup: "2026-08-03", pickupTime: "10:00", createdAt: "2026-08-03T13:00:00.000Z" }),
       ],
     });
 
     expect(screen.getAllByRole("button", { name: /^Open order/ }).map(button => button.getAttribute("aria-label"))).toEqual([
+      "Open order later for Later",
       "Open order overdue for Overdue",
       "Open order next for Next",
-      "Open order later for Later",
     ]);
   });
 

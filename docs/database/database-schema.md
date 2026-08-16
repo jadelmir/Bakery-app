@@ -17,12 +17,13 @@ Bakery-owned records are protected by authenticated workspace membership and Row
 - `20260729160000_invoices_and_payments.sql` — invoices, invoice items/events, bakery payment methods, and payments.
 - `20260729170000_online_storefront.sql` — storefront, customers, recipes, orders, order items, availability/capacity, and idempotency structures.
 - `20260730180000_starter_and_inventory_movements.sql` — starter profiles/builds, inventory transaction ledger, and task execution logs.
+- `20260816000614_persist_production_flows.sql` — bakery-scoped production flows and ordered steps, dependency constraints, RLS/grants, and atomic save/delete RPCs.
 
-Later migrations in `Front-end/supabase/migrations/` are the authoritative evidence for newer implemented schema. When this document and committed migrations disagree, verify the migrations and update this reference; do not infer planned tables from old requirement documents.
+Later migrations in `Front-end/supabase/migrations/` are the authoritative evidence for newer implemented schema. The recipe persistence migration adds `recipe_ingredients`, converts recipe `flow_id` to text, and exposes the bakery-scoped `save_recipe` RPC. When this document and committed migrations disagree, verify the migrations and update this reference; do not infer planned tables from old requirement documents.
 
 ## Implemented domain areas
 
-Current migrations cover workspace identity/membership, ingredients and inventory costing, invoicing/payments, customers/recipes/orders/storefront behavior, sourdough starter planning records, inventory transaction history, and task execution logging.
+Current migrations cover workspace identity/membership, ingredients and inventory costing, invoicing/payments, customers/recipes/orders/storefront behavior, bakery-scoped production flow persistence, sourdough starter planning records, inventory transaction history, and task execution logging.
 
 ## Durable invariants
 
@@ -31,5 +32,9 @@ Current migrations cover workspace identity/membership, ingredients and inventor
 - Financial values are stored as integer cents.
 - Historical order/invoice data that must not drift is snapshotted or otherwise frozen by the implementing schema/operation.
 - Schema changes are migration-first and committed to Git.
+- Production flow saves replace the complete ordered step set through an invoker RPC, preserving same-flow dependency integrity atomically.
+- Production flow tables and RPCs require authenticated bakery membership; anonymous access and cross-bakery access are denied by grants and RLS.
+- Recipe saves replace the complete ingredient-line set through the invoker `save_recipe` RPC, calculating authoritative batch cost from active bakery inventory rows.
+- Recipe ingredient lines and the save RPC require authenticated bakery membership; anonymous access and cross-bakery access are denied by grants and RLS.
 
 For exact tables, columns, policies, functions, constraints, and their current order, inspect the committed migrations and generated Supabase types. OpenSpec is authoritative for proposed schema changes that are not yet implemented.

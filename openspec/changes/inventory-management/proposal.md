@@ -2,14 +2,28 @@
 
 The Inventory page currently shows mock or read-only stock information even
 though the domain layer already contains partial ingredient, restock, and
-adjustment behavior. The bakery needs one trustworthy inventory workflow that
-covers ingredients, retail supplies, and finished goods while feeding both
+adjustment behavior. Recipe creation also falls back to hardcoded sample items
+such as Organic Flour instead of using the active bakery's inventory. The
+bakery needs one trustworthy, simple inventory workflow that is divided into
+Ingredients and Retail supplies and is easy to extend while still feeding
 production planning and financial reporting.
 
 ## What Changes
 
 - Replace the read-only inventory view with a persisted, bakery-scoped inventory
-  workflow for raw ingredients, retail supplies, and finished goods.
+  workflow with two simple user-facing sections: Ingredients and Retail
+  supplies.
+- Let members add an inventory item with a small form and use the same flow
+  from recipe creation when a needed item does not exist.
+- Let members open an existing inventory item directly from its card to edit
+  its details or record stock without searching from a separate inventory
+  entry flow.
+- Let members remove an existing item from active inventory from that same
+  item view, while preserving its stock and purchase history.
+- Capture each item's typical package quantity and package price so inventory
+  can calculate a base-unit cost, such as 10,000 g of flour for $17.
+- Make recipe ingredient rows start empty and reference real inventory items;
+  never silently insert hardcoded sample items.
 - Support package receiving with base-unit conversion, physical-count
   adjustments, and an append-only inventory ledger.
 - Reserve requirements at the beginning of an order's prep day without reducing
@@ -35,7 +49,8 @@ reporting capabilities.
 ### Modified Capabilities
 
 - `ingredients-and-stock-entry`: add item categories, package receiving,
-  base-unit conversion, physical counts, and append-only inventory events.
+  base-unit conversion, physical counts, append-only inventory events, and
+  recipe-linked item creation.
 - `inventory-requirements-management`: add prep-day reservations, available
   versus on-hand balances, finished-good output/allocation, and idempotent
   production usage.
@@ -44,8 +59,9 @@ reporting capabilities.
 
 ## Impact
 
-- Frontend inventory screens, stock-entry dialogs, shopping-list presentation,
-  domain state commands, task-completion integration, and finance reporting.
+- Frontend inventory screens, simple item-creation and stock-entry dialogs,
+  recipe ingredient selection, shopping-list presentation, domain state
+  commands, task-completion integration, and finance reporting.
 - Supabase inventory schema, migrations, generated database types, RLS, and a
   persisted inventory adapter or RPC boundary.
 - Existing recipes, production tasks, orders, and bakery-scoped workspace state.
@@ -57,4 +73,6 @@ reporting capabilities.
   serialized rather than duplicated.
 
 Non-goals are supplier management, invoice scanning, lot/expiry/FIFO tracking,
-multi-location transfers, and a full accounting system.
+multi-location transfers, and a full accounting system. Finished goods may be
+created by production output, but they are not a manual category in the basic
+inventory add-item flow.

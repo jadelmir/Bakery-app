@@ -4,13 +4,19 @@ import type {
   BakeryDomainAdapter,
   BakeryDomainSnapshot,
   BakeryId,
+  CreateRecipeInput,
   CreateOrderInput,
   CreateCustomerInput,
   CustomerResult,
+  RecipeResult,
+  UpdateRecipeInput,
   UpdateCustomerInput,
   DomainEntityChanges,
   MarkOrderPaidInput,
   MarkOrderPaidResult,
+  SaveProductionFlowInput,
+  DeleteProductionFlowInput,
+  ProductionFlowResult,
   TransitionOrderStatusInput,
   TransitionOrderStatusResult,
   UpdateTaskInput,
@@ -64,13 +70,20 @@ const mutationFailure = (bakeryId: BakeryId, error: AdapterFailure): MutationReq
 
 /** Applies only authoritative entities returned by a successful adapter mutation. */
 export function applyDomainChanges(snapshot: BakeryDomainSnapshot, changes: DomainEntityChanges): BakeryDomainSnapshot {
+  const flowUpdates = changes.flows ? Object.fromEntries(changes.flows.map((entity) => [entity.id, entity])) : {};
+  const flowIdsToDelete = changes.deletedFlowIds ?? [];
+  const nextFlows = { ...snapshot.flowsById, ...flowUpdates };
+  flowIdsToDelete.forEach((flowId) => delete nextFlows[flowId]);
   return {
     ...snapshot,
     ordersById: changes.orders ? { ...snapshot.ordersById, ...Object.fromEntries(changes.orders.map((entity) => [entity.id, entity])) } : snapshot.ordersById,
     orderItemsById: changes.orderItems ? { ...snapshot.orderItemsById, ...Object.fromEntries(changes.orderItems.map((entity) => [entity.id, entity])) } : snapshot.orderItemsById,
     tasksById: changes.tasks ? { ...snapshot.tasksById, ...Object.fromEntries(changes.tasks.map((entity) => [entity.id, entity])) } : snapshot.tasksById,
     customersById: changes.customers ? { ...snapshot.customersById, ...Object.fromEntries(changes.customers.map((entity) => [entity.id, entity])) } : snapshot.customersById,
+    inventoryById: changes.inventoryItems ? { ...snapshot.inventoryById, ...Object.fromEntries(changes.inventoryItems.map((entity) => [entity.id, entity])) } : snapshot.inventoryById,
     inventoryTransactionsById: changes.inventoryTransactions ? { ...snapshot.inventoryTransactionsById, ...Object.fromEntries(changes.inventoryTransactions.map((entity) => [entity.id, entity])) } : snapshot.inventoryTransactionsById,
+    recipesById: changes.recipes ? { ...snapshot.recipesById, ...Object.fromEntries(changes.recipes.map((entity) => [entity.id, entity])) } : snapshot.recipesById,
+    flowsById: changes.flows || flowIdsToDelete.length > 0 ? nextFlows : snapshot.flowsById,
   };
 }
 
@@ -113,11 +126,15 @@ export function bakeryDomainReducer(state: BakeryDomainState, action: DomainActi
 export interface BakeryDomainCommands {
   load(bakeryId: BakeryId): Promise<void>;
   createOrder(input: CreateOrderInput): Promise<void>;
+  createRecipe(input: CreateRecipeInput): Promise<AdapterResult<RecipeResult>>;
+  updateRecipe(input: UpdateRecipeInput): Promise<AdapterResult<RecipeResult>>;
   createCustomer(input: CreateCustomerInput): Promise<AdapterResult<CustomerResult>>;
   updateCustomer(input: UpdateCustomerInput): Promise<AdapterResult<CustomerResult>>;
   transitionOrderStatus(input: TransitionOrderStatusInput): Promise<AdapterResult<TransitionOrderStatusResult>>;
   markOrderPaid(input: MarkOrderPaidInput): Promise<AdapterResult<MarkOrderPaidResult>>;
   updateTask(input: UpdateTaskInput): Promise<void>;
+  saveProductionFlow(input: SaveProductionFlowInput): Promise<AdapterResult<ProductionFlowResult>>;
+  deleteProductionFlow(input: DeleteProductionFlowInput): Promise<AdapterResult<ProductionFlowResult>>;
   /* eslint-disable @typescript-eslint/no-explicit-any */
   updateStorefrontSettings(input: any): Promise<any>;
   publishRecipeToStorefront(input: any): Promise<any>;
@@ -157,6 +174,20 @@ export function createBakeryDomainController(adapter: BakeryDomainAdapter): Bake
       if (result.ok) dispatch({ type: "mutation-succeeded", bakeryId: input.bakeryId, operationId: input.operationId, changes: result.data.changes });
       else dispatch({ type: "mutation-failed", bakeryId: input.bakeryId, operationId: input.operationId, error: result.error });
     },
+    async createRecipe(input) {
+      dispatch({ type: "mutation-started", bakeryId: input.bakeryId, operationId: input.operationId });
+      const result = await adapter.createRecipe(input);
+      if (result.ok) dispatch({ type: "mutation-succeeded", bakeryId: input.bakeryId, operationId: input.operationId, changes: result.data.changes });
+      else dispatch({ type: "mutation-failed", bakeryId: input.bakeryId, operationId: input.operationId, error: result.error });
+      return result;
+    },
+    async updateRecipe(input) {
+      dispatch({ type: "mutation-started", bakeryId: input.bakeryId, operationId: input.operationId });
+      const result = await adapter.updateRecipe(input);
+      if (result.ok) dispatch({ type: "mutation-succeeded", bakeryId: input.bakeryId, operationId: input.operationId, changes: result.data.changes });
+      else dispatch({ type: "mutation-failed", bakeryId: input.bakeryId, operationId: input.operationId, error: result.error });
+      return result;
+    },
     async createCustomer(input) {
       dispatch({ type: "mutation-started", bakeryId: input.bakeryId, operationId: input.operationId });
       const result = await adapter.createCustomer(input);
@@ -190,6 +221,20 @@ export function createBakeryDomainController(adapter: BakeryDomainAdapter): Bake
       const result = await adapter.updateTask(input);
       if (result.ok) dispatch({ type: "mutation-succeeded", bakeryId: input.bakeryId, operationId: input.operationId, changes: result.data.changes });
       else dispatch({ type: "mutation-failed", bakeryId: input.bakeryId, operationId: input.operationId, error: result.error });
+    },
+    async saveProductionFlow(input) {
+      dispatch({ type: "mutation-started", bakeryId: input.bakeryId, operationId: input.operationId });
+      const result = await adapter.saveProductionFlow(input);
+      if (result.ok) dispatch({ type: "mutation-succeeded", bakeryId: input.bakeryId, operationId: input.operationId, changes: result.data.changes });
+      else dispatch({ type: "mutation-failed", bakeryId: input.bakeryId, operationId: input.operationId, error: result.error });
+      return result;
+    },
+    async deleteProductionFlow(input) {
+      dispatch({ type: "mutation-started", bakeryId: input.bakeryId, operationId: input.operationId });
+      const result = await adapter.deleteProductionFlow(input);
+      if (result.ok) dispatch({ type: "mutation-succeeded", bakeryId: input.bakeryId, operationId: input.operationId, changes: result.data.changes });
+      else dispatch({ type: "mutation-failed", bakeryId: input.bakeryId, operationId: input.operationId, error: result.error });
+      return result;
     },
     /* eslint-disable @typescript-eslint/no-explicit-any */
     async updateStorefrontSettings(input: any) {

@@ -1,5 +1,5 @@
 import {
-  FileText, Store, Package, Users, DollarSign, CreditCard, User, Droplets, Settings,
+  FileText, Store, Package, Users, DollarSign, CreditCard, User, Settings,
   ChevronRight, LogOut, BookOpen,
 } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -10,7 +10,6 @@ import {
   selectLowStockCount,
   selectActiveCustomerCount,
   selectUnpaidCustomerSummary,
-  selectActiveStarterInfo,
 } from "../state/selectors";
 import type { BakeryDomainSnapshot } from "../domain/types";
 import type { BakeryMembership } from "../workspace";
@@ -36,8 +35,6 @@ export function MoreScreen({
   const requestLogout = useGuardedExit("logout");
   const customerCount = snapshot ? selectActiveCustomerCount(snapshot) : 4;
   const unpaidInfo = snapshot ? selectUnpaidCustomerSummary(snapshot) : { unpaidTotal: 103, summary: "" };
-  const starterInfo = snapshot ? selectActiveStarterInfo(snapshot) : { name: "Earl", subtitle: "Earl · feed by 8 PM tonight" };
-
   const items = [
     { Icon: BookOpen,   label: "Recipes",          routeId: "recipes" as WorkspaceRouteId,          sub: "Manage recipes & batch costing" },
     { Icon: FileText,   label: "Invoices",         routeId: "invoices" as WorkspaceRouteId,         sub: "Manage customer billing & payments" },
@@ -47,7 +44,6 @@ export function MoreScreen({
     { Icon: DollarSign, label: "Finances",         routeId: "finances" as WorkspaceRouteId,         sub: unpaidInfo.unpaidTotal > 0 ? `$${unpaidInfo.unpaidTotal} unpaid balance` : "All customer accounts paid" },
     { Icon: CreditCard, label: "Payment Settings", routeId: "payment-settings" as WorkspaceRouteId, sub: "Zelle, PayPal, Cash & Check" },
     { Icon: User,       label: "Account & Profile",routeId: "account" as WorkspaceRouteId,          sub: "Profile, preferences & password" },
-    { Icon: Droplets,   label: "Starter Manager",  routeId: "starter" as WorkspaceRouteId,          sub: starterInfo.subtitle },
     { Icon: Settings,   label: "Settings",         routeId: "settings" as WorkspaceRouteId,         sub: "App & notifications" },
   ];
   return (

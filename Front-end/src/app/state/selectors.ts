@@ -1,6 +1,7 @@
 import { buildStarterPlans, calculateRequirements, shoppingList } from "../planning";
 import { reportFor } from "../reporting";
-import type { BakeryDomainSnapshot, DomainInventoryItem, DomainOrder, DomainOrderItem, DomainTask } from "../domain/types";
+import { BAKERY_TIME_ZONE, dateKey } from "../constants";
+import type { BakeryDomainSnapshot, DomainCustomer, DomainInventoryItem, DomainOrder, DomainOrderItem, DomainTask } from "../domain/types";
 import type { BakeryDomainState } from "./domainState";
 
 const values = <T>(records: Readonly<Record<string, T>>): T[] => Object.values(records);
@@ -11,12 +12,77 @@ export interface OrderReadModel extends DomainOrder {
   readonly items: readonly DomainOrderItem[];
 }
 
+export interface HomeOrderReadModel extends OrderReadModel {
+  readonly customer: DomainCustomer | undefined;
+  readonly balance: number;
+  readonly productSummary: string;
+}
+
+export interface HomeOrderDayGroup {
+  readonly dateKey: string;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly isToday: boolean;
+  readonly orders: readonly HomeOrderReadModel[];
+}
+
 export const selectOrders = (snapshot: BakeryDomainSnapshot): readonly OrderReadModel[] =>
   values(snapshot.ordersById).map((order) => ({
     ...order,
     customerName: snapshot.customersById[order.customerId]?.name ?? "Unknown customer",
     items: order.itemIds.map((id) => snapshot.orderItemsById[id]).filter((item): item is DomainOrderItem => Boolean(item)),
   })).sort((left, right) => left.pickupDate.localeCompare(right.pickupDate) || left.pickupTime.localeCompare(right.pickupTime));
+
+const addCalendarDays = (value: string, amount: number) => {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+};
+
+const formatHomeDay = (value: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", {
+  ...options,
+  timeZone: BAKERY_TIME_ZONE,
+}).format(new Date(`${value}T12:00:00Z`));
+
+const productSummaryFor = (items: readonly DomainOrderItem[]) => {
+  const quantities = new Map<string, number>();
+  const order: string[] = [];
+  items.forEach(item => {
+    if (!quantities.has(item.product)) order.push(item.product);
+    quantities.set(item.product, (quantities.get(item.product) ?? 0) + item.quantity);
+  });
+  return order.map(product => `${quantities.get(product)} ${product}`).join(" · ");
+};
+
+export const selectHomeOrderCalendar = (snapshot: BakeryDomainSnapshot, referenceDate = new Date()): readonly HomeOrderDayGroup[] => {
+  const today = dateKey(referenceDate);
+  const horizonEnd = addCalendarDays(today, 6);
+  const orders = selectOrders(snapshot)
+    .filter(order => !["completed", "cancelled"].includes(order.status))
+    .filter(order => order.pickupDate >= today && order.pickupDate <= horizonEnd)
+    .map(order => ({
+      ...order,
+      customer: snapshot.customersById[order.customerId],
+      balance: Math.max(0, order.total - order.paid),
+      productSummary: productSummaryFor(order.items),
+    }))
+    .sort((left, right) => left.pickupDate.localeCompare(right.pickupDate) || left.pickupTime.localeCompare(right.pickupTime));
+
+  const grouped = new Map<string, HomeOrderReadModel[]>();
+  orders.forEach(order => {
+    const current = grouped.get(order.pickupDate) ?? [];
+    current.push(order);
+    grouped.set(order.pickupDate, current);
+  });
+
+  return [...grouped.entries()].map(([key, dayOrders]) => ({
+    dateKey: key,
+    label: formatHomeDay(key, { weekday: "long", month: "short", day: "numeric" }),
+    shortLabel: formatHomeDay(key, { weekday: "short", month: "short", day: "numeric" }),
+    isToday: key === today,
+    orders: dayOrders,
+  }));
+};
 
 export const selectProduction = (snapshot: BakeryDomainSnapshot) => ({
   tasks: values(snapshot.tasksById).sort(byScheduledAt),
@@ -51,12 +117,28 @@ export const selectCustomers = (snapshot: BakeryDomainSnapshot) => {
 
 export const selectRecipes = (snapshot: BakeryDomainSnapshot) => values(snapshot.recipesById).map((recipe) => ({
   ...recipe,
-  flow: snapshot.flowsById[recipe.flowId],
+  flow: recipe.flowId ? snapshot.flowsById[recipe.flowId] : undefined,
 }));
 
+export const selectFinanceOrders = (snapshot: BakeryDomainSnapshot) => selectOrders(snapshot).map((order) => ({
+    id: order.id,
+    pickup: order.pickupDate,
+    customer: order.customerName,
+    status: order.status,
+    items: order.items.map((item) => ({
+      product: item.product,
+      qty: item.quantity,
+      price: item.unitPrice,
+      costPerUnit: snapshot.recipesById[item.recipeId]?.batchCost,
+    })),
+    total: order.total,
+    paid: order.paid,
+  }));
+
 export const selectFinances = (snapshot: BakeryDomainSnapshot) => reportFor(
-  selectOrders(snapshot).map((order) => ({ id: order.id, pickup: order.pickupDate, items: order.items.map((item) => ({ product: item.product, qty: item.quantity, price: item.unitPrice })), total: order.total, paid: order.paid })),
+  selectFinanceOrders(snapshot),
   { product: "all", range: "all" },
+  { inventoryFinance: snapshot.inventoryFinance },
 );
 
 export const selectDashboard = (snapshot: BakeryDomainSnapshot) => {
@@ -100,9 +182,10 @@ export const selectUnpaidCustomerSummary = (snapshot: BakeryDomainSnapshot): { u
   return { unpaidTotal, summary };
 };
 
-export const selectActiveStarterInfo = (snapshot: BakeryDomainSnapshot): { name: string; subtitle: string } => {
+export const selectActiveStarterInfo = (snapshot: BakeryDomainSnapshot): { name: string; subtitle: string } | undefined => {
   const starterItem = values(snapshot.inventoryById).find((i) => (i.kind as string) === "starter" || i.name.toLowerCase().includes("starter"));
-  const starterName = starterItem ? starterItem.name : "Earl (Sourdough Starter)";
+  if (!starterItem) return undefined;
+  const starterName = starterItem.name;
   return {
     name: starterName,
     subtitle: `${starterName.split(" ")[0]} · feed by 8 PM tonight`,
