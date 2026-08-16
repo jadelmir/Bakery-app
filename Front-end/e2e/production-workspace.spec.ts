@@ -17,6 +17,10 @@ async function showActionableProductionDate(page: import("@playwright/test").Pag
   await expect(page.getByText(FIXTURE_PRODUCTION_TEST_DATE, { exact: true })).toBeVisible();
 }
 
+async function openFirstTaskDetails(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Actions & notes" }).first().click();
+}
+
 test.describe("Production Task Workspace & Execution", () => {
   test("navigates to Production screen and verifies category tabs & workspace UI", async ({ page }) => {
     await logIn(page);
@@ -64,6 +68,7 @@ test.describe("Production Task Workspace & Execution", () => {
     await logIn(page);
     await page.getByRole("button", { name: /^Production/i }).first().click();
     await showActionableProductionDate(page);
+    await openFirstTaskDetails(page);
 
     const startTimerBtn = page.getByRole("button", { name: /Start Timer/i }).first();
     await expect(startTimerBtn).toBeVisible();
@@ -82,6 +87,7 @@ test.describe("Production Task Workspace & Execution", () => {
     await logIn(page);
     await page.getByRole("button", { name: /^Production/i }).first().click();
     await showActionableProductionDate(page);
+    await openFirstTaskDetails(page);
 
     await page.getByRole("button", { name: /Start Timer/i }).nth(0).click();
     await page.getByRole("button", { name: /Start Timer/i }).nth(0).click();
@@ -95,6 +101,7 @@ test.describe("Production Task Workspace & Execution", () => {
     await logIn(page);
     await page.getByRole("button", { name: /^Production/i }).first().click();
     await showActionableProductionDate(page);
+    await openFirstTaskDetails(page);
 
     const delayBtn = page.getByRole("button", { name: "Delay" }).first();
     await expect(delayBtn).toBeVisible();
@@ -103,13 +110,19 @@ test.describe("Production Task Workspace & Execution", () => {
     await expect(page.getByText("Postpone / Delay Task")).toBeVisible();
     await page.getByRole("button", { name: "+15 Minutes" }).click();
 
-    await expect(page.getByText("+15m Delayed").first()).toBeVisible();
+    const delayedBlock = page
+      .getByRole("article", { name: /Build Starter production block/ })
+      .filter({ hasText: "Sourdough Loaf" })
+      .last();
+    await delayedBlock.getByRole("button", { name: "Actions & notes" }).click();
+    await expect(delayedBlock.getByText("+15m Delayed")).toBeVisible();
   });
 
   test("checks prerequisite warning badge and displays pending step badge", async ({ page }) => {
     await logIn(page);
     await page.getByRole("button", { name: /^Production/i }).first().click();
     await showActionableProductionDate(page);
+    await openFirstTaskDetails(page);
 
     const prereqBadge = page.getByText(/Prerequisite Pending/i).first();
     await expect(prereqBadge).toBeVisible();

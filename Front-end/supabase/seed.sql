@@ -103,7 +103,7 @@ INSERT INTO public.ingredients (id, bakery_id, name, unit, package_quantity, pac
   ('d4444444-4444-4444-4444-444444444444', 'b1111111-1111-1111-1111-111111111111', 'Filtered Water', 'g', 10000, 1.00, 50000, 5000, 'ingredient'),
   ('d5555555-5555-5555-5555-555555555555', 'b1111111-1111-1111-1111-111111111111', 'Earl (Active Sourdough Starter)', 'g', 1000, 5.00, 2500, 800, 'ingredient'),
   ('d6666666-6666-6666-6666-666666666666', 'b1111111-1111-1111-1111-111111111111', 'Extra Virgin Olive Oil', 'g', 1000, 12.00, 1800, 500, 'ingredient'),
-  ('d7777777-7777-7777-7777-777777777777', 'b1111111-1111-1111-1111-111111111111', 'Kraft Windowed Loaf Bag', 'units', 100, 15.00, 250, 50, 'packaging')
+  ('d7777777-7777-7777-7777-777777777777', 'b1111111-1111-1111-1111-111111111111', 'Kraft Windowed Loaf Bag', 'unit', 100, 15.00, 250, 50, 'packaging')
 ON CONFLICT (id) DO NOTHING;
 
 -- 4. Customer Directory

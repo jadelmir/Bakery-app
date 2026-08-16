@@ -8,7 +8,7 @@ async function logInAndOpenOrders(page: Page) {
   await expect(page.getByRole("heading", { name: "Select a bakery" })).toBeVisible();
   await page.getByRole("button", { name: "Enter bakery" }).click();
   await page.getByRole("button", { name: /^Orders/ }).first().click();
-  await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/orders$/);
 }
 

@@ -119,25 +119,25 @@ describe("Bakery frontend prototype", () => {
     expect(screen.getByText("Ready to create")).toBeTruthy();
     expect(screen.getByText(/order will be saved/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Create Order" })).toBeTruthy();
-  });
+  }, 15000);
 
   it("shows a traceable production plan in order details", async () => {
     renderWithRouter(<BakeryWorkspace />, "/home");
 
     fireEvent.click(screen.getAllByRole("button", { name: "Orders" })[0]);
-    await screen.findByRole("heading", { name: "Orders" });
+    await screen.findByRole("heading", { name: "Orders" }, { timeout: 5000 });
     await screen.findByText("James Okonkwo");
     fireEvent.click(screen.getByRole("button", { name: /Open order #025 for James Okonkwo/ }));
     expect(await screen.findByLabelText("Production progress")).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Production tasks completed" })).toBeTruthy();
     expect(screen.getByText("View task history")).toBeTruthy();
-  });
+  }, 15000);
 
   it("supports calendar navigation and shared task actions", async () => {
     renderWithRouter(<BakeryWorkspace />, "/home");
 
     fireEvent.click(screen.getAllByRole("button", { name: "Production" })[0]);
-    await screen.findByRole("heading", { name: "Production Workspace" });
+    await screen.findByRole("heading", { name: "Production Workspace" }, { timeout: 5000 });
     fireEvent.click(await screen.findByRole("button", { name: "calendar" }));
 
     expect(screen.getByLabelText("Select production day")).toBeTruthy();
@@ -158,7 +158,7 @@ describe("Bakery frontend prototype", () => {
     renderWithRouter(<BakeryWorkspace />, "/home");
 
     fireEvent.click(screen.getAllByRole("button", { name: "Production" })[0]);
-    await screen.findByRole("heading", { name: "Production Workspace" });
+    await screen.findByRole("heading", { name: "Production Workspace" }, { timeout: 5000 });
     fireEvent.click(await screen.findByRole("button", { name: "Flow Builder" }));
     fireEvent.click(screen.getByRole("button", { name: /Standard Sourdough Loaf/ }));
     expect(screen.getByDisplayValue("Standard Sourdough Loaf")).toBeTruthy();

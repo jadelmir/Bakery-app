@@ -50,7 +50,7 @@ test("navigates to Orders from the primary navigation", async ({ page }) => {
   await logIn(page);
   await page.getByRole("button", { name: /^Orders/ }).first().click();
 
-  await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
 });
 
 test("completes the Add Order workflow", async ({ page }) => {
@@ -70,7 +70,7 @@ test("completes the Add Order workflow", async ({ page }) => {
 test("advances a manual order sequentially", async ({ page }) => {
   await logIn(page);
   await page.getByRole("button", { name: /^Orders/ }).filter({ visible: true }).click();
-  await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/orders$/);
   await page.getByRole("button", { name: /Open order .* for James Okonkwo/ }).click();
   await expect(page.getByLabel("Order detail").getByRole("heading", { name: "James Okonkwo" })).toBeVisible();
@@ -107,7 +107,7 @@ test("switches stores, clears the prior view, and manages the active bakery team
   await page.addInitScript(() => localStorage.setItem("bakery-mock-scenario", "multiple"));
   await logIn(page);
   await page.getByRole("button", { name: /^Orders/ }).first().click();
-  await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
 
   await page.getByLabel("Switch active bakery").filter({ visible: true }).first().selectOption("bakery-south");
   await expect(page.getByText("manager · active bakery").filter({ visible: true }).first()).toBeVisible();

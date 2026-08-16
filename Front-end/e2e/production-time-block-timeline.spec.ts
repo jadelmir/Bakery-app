@@ -32,7 +32,13 @@ test.describe("Production time-block timeline", () => {
     await expect(page.getByRole("button", { name: "today", exact: true })).toHaveClass(/text-white/);
     await page.getByRole("button", { name: "tomorrow", exact: true }).click();
     await expect(page.getByRole("button", { name: "tomorrow", exact: true })).toHaveClass(/text-white/);
-    await expect(page.getByText("2026-08-04", { exact: true })).toBeVisible();
+    const tomorrow = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(Date.now() + 24 * 60 * 60 * 1000));
+    await expect(page.getByText(tomorrow, { exact: true })).toBeVisible();
     await expect(page.getByText("No tasks in this view")).toBeVisible();
   });
 

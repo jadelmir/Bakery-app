@@ -31,7 +31,7 @@ test("verifies cross-screen reactive projections when creating an order and comp
   await page.getByRole("button", { name: "Create Order" }).click();
 
   // 2. Verify Orders screen reflects the new order
-  await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
   await expect(page.getByText("Sarah Mitchell").first()).toBeVisible();
 
   // 3. Check Production screen

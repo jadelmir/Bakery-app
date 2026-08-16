@@ -7,7 +7,7 @@ const primaryRoutes = [
   { path: "/storefront", screen: /^Online Storefront$/ },
   { path: "/production", screen: /^Production Workspace$/ },
   { path: "/recipes", screen: /^Recipe Management$/ },
-  { path: "/inventory", screen: /^Inventory & Ingredients$/ },
+  { path: "/inventory", screen: /^Inventory$/ },
   { path: "/customers", screen: /^Customer Directory$/ },
   { path: "/finances", screen: /^Finances$/ },
   { path: "/settings", screen: /^Team access$/ },

@@ -12,5 +12,5 @@ test("navigates to Inventory screen and displays stock items", async ({ page }) 
     await page.getByRole("button", { name: "More" }).click();
   }
   await page.getByRole("button", { name: /^Inventory/ }).filter({ visible: true }).click();
-  await expect(page.getByRole("heading", { name: "Inventory & Ingredients" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Inventory", exact: true })).toBeVisible();
 });
