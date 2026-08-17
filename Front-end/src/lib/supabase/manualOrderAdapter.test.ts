@@ -6,6 +6,7 @@ type QueryResponse = { data: Record<string, unknown>[] | null; error: { message:
 function query(response: QueryResponse) {
   const builder = {
     select: vi.fn(() => builder),
+    delete: vi.fn(() => builder),
     update: vi.fn(() => builder),
     eq: vi.fn(() => builder),
     in: vi.fn(() => builder),
@@ -137,5 +138,25 @@ describe("manualOrderAdapter persisted status transitions", () => {
     await expect(service.markOrderPaid({ bakeryId: "bakery-1", operationId: "pay-order-2", orderId: "order-1" }))
       .rejects.toThrow("Failed to mark order paid: payment rejected");
     expect(client.from).not.toHaveBeenCalled();
+  });
+
+  it("deletes only the requested bakery order and confirms dependent task absence", async () => {
+    const deleteQuery = query({ data: [{ id: "order-1" }], error: null });
+    const emptyQuery = () => query({ data: [], error: null });
+    const client = {
+      from: vi.fn((table: string) => table === "orders" ? (client.from.mock.calls.length === 1 ? deleteQuery : emptyQuery()) : emptyQuery()),
+      rpc: vi.fn(),
+    };
+
+    const snapshot = await createManualOrderService(client as never).deleteOrder({
+      bakeryId: "bakery-1",
+      operationId: "delete-order-1",
+      orderId: "order-1",
+    });
+
+    expect(deleteQuery.delete).toHaveBeenCalledOnce();
+    expect(deleteQuery.eq.mock.calls).toEqual([["bakery_id", "bakery-1"], ["id", "order-1"]]);
+    expect(snapshot.orders).toEqual([]);
+    expect(snapshot.tasks).toEqual([]);
   });
 });

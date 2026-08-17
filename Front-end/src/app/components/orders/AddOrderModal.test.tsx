@@ -12,12 +12,14 @@ vi.mock("../../state/provider", () => ({
 }));
 
 import { AddOrderModal } from "./AddOrderModal";
+import type { Customer } from "../../types";
 
 afterEach(cleanup);
+afterEach(() => vi.useRealTimers());
 beforeEach(() => mocks.createCustomer.mockReset());
 
-function renderModal() {
-  return render(<AddOrderModal onClose={vi.fn()} onCreatePlan={vi.fn()} customers={[]} recipes={[]} />);
+function renderModal(customers: Customer[] = [], recipes: { id: string; name: string; yield: string; sellingPrice: number }[] = []) {
+  return render(<AddOrderModal onClose={vi.fn()} onCreatePlan={vi.fn()} customers={customers} recipes={recipes} />);
 }
 
 function fillCustomer() {
@@ -93,5 +95,25 @@ describe("AddOrderModal customer creation", () => {
     expect(mocks.createCustomer).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("New Order")).toBeInTheDocument();
+  });
+});
+
+describe("AddOrderModal pickup date", () => {
+  it("defaults a newly opened order to today's local date and keeps it editable", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 17, 9, 0));
+    renderModal(
+      [{ id: "customer-1", name: "Yuri", email: "yuri@example.test", phone: "", address: "", notes: "", orders: 0, totalSpent: 0, balance: 0, favorites: [] }],
+      [{ id: "recipe-1", name: "Loaf", yield: "1 loaf", sellingPrice: 9 }],
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Yuri.*yuri@example\.test/i }));
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Add", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(screen.getByDisplayValue("2026-08-17")).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("2026-08-17"), { target: { value: "2026-08-20" } });
+    expect(screen.getByDisplayValue("2026-08-20")).toBeInTheDocument();
   });
 });

@@ -141,6 +141,27 @@ describe("session-local bakery domain adapter", () => {
     expect(crossBakery).toMatchObject({ ok: false, error: { kind: "validation", field: "orderId" } });
   });
 
+  it("deletes an order, its items, and generated tasks within one bakery", async () => {
+    const adapter = createSessionLocalBakeryDomainAdapter();
+    const before = await adapter.loadSnapshot({ bakeryId: earls });
+    if (!before.ok) throw new Error("Expected fixture snapshot.");
+    const order = before.data.ordersById["order-025"];
+    const taskIds = Object.values(before.data.tasksById).filter(task => task.orderId === "order-025").map(task => task.id);
+
+    const deleted = await adapter.deleteOrder({ bakeryId: earls, operationId: "delete-order-025", orderId: "order-025" });
+    const after = await adapter.loadSnapshot({ bakeryId: earls });
+    const crossBakery = await adapter.deleteOrder({ bakeryId: FIXTURE_BAKERY_IDS.MARINA, operationId: "delete-cross-bakery", orderId: "order-025" });
+
+    expect(deleted).toMatchObject({ ok: true, data: { kind: "order-deleted", changes: { deletedOrderIds: ["order-025"] } } });
+    expect(after).toMatchObject({ ok: true });
+    if (after.ok) {
+      expect(after.data.ordersById["order-025"]).toBeUndefined();
+      expect(order.itemIds.every(id => !after.data.orderItemsById[id])).toBe(true);
+      expect(taskIds.every(id => !after.data.tasksById[id])).toBe(true);
+    }
+    expect(crossBakery).toMatchObject({ ok: false, error: { kind: "validation", field: "orderId" } });
+  });
+
   it("calculates cost per base unit and updates stock levels on movement", async () => {
     const adapter = createSessionLocalBakeryDomainAdapter();
     const pkgPrice = 15.0;

@@ -12,6 +12,7 @@ import type {
   CreateCustomerInput,
   CreateIngredientInput,
   CreateIngredientResult,
+  DeleteOrderResult,
   DeleteIngredientResult,
   CreateInvoiceInput,
   CreateInvoiceItemInput,
@@ -78,7 +79,7 @@ export interface SessionLocalAdapterOptions {
   readonly failures?: Partial<Record<DomainOperation, AdapterFailure>>;
 }
 
-type MutationResult = CreateOrderResult | TransitionOrderStatusResult | MarkOrderPaidResult | UpdateTaskResult | RecipeResult | CustomerResult | InvoiceResult | StorefrontResult | OnlineOrderResult | ProductionFlowResult | InventoryResult | CreateIngredientResult | UpdateIngredientResult | DeleteIngredientResult;
+type MutationResult = CreateOrderResult | DeleteOrderResult | TransitionOrderStatusResult | MarkOrderPaidResult | UpdateTaskResult | RecipeResult | CustomerResult | InvoiceResult | StorefrontResult | OnlineOrderResult | ProductionFlowResult | InventoryResult | CreateIngredientResult | UpdateIngredientResult | DeleteIngredientResult;
 
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -206,6 +207,37 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
           tasksById: { ...snapshot.tasksById, ...Object.fromEntries(generatedTasks.map((task) => [task.id, task])) },
         };
         const data: CreateOrderResult = { kind: "order-created", operationId: input.operationId, changes: { orders: [order], orderItems, tasks: generatedTasks } };
+        operationResults.set(operationKey(input.bakeryId, input.operationId), data);
+        return { ok: true, data: clone(data) };
+      });
+    },
+
+    async deleteOrder(input) {
+      return resultFor("delete-order", () => {
+        const cached = operationResults.get(operationKey(input.bakeryId, input.operationId));
+        if (cached) return { ok: true, data: clone(cached as DeleteOrderResult) };
+        const loaded = snapshotFor(input.bakeryId);
+        if (!loaded.ok) return loaded;
+        const snapshot = loaded.data;
+        if (!input.operationId) return { ok: false, error: validation("An operation ID is required for a safe retry.", "operationId") };
+        const order = snapshot.ordersById[input.orderId];
+        if (!order) return { ok: false, error: validation("The order does not exist in this bakery.", "orderId") };
+        const deletedOrderItemIds = order.itemIds.filter(itemId => Boolean(snapshot.orderItemsById[itemId]));
+        const deletedTaskIds = Object.values(snapshot.tasksById)
+          .filter(task => task.orderId === input.orderId)
+          .map(task => task.id);
+        const ordersById = { ...snapshot.ordersById };
+        const orderItemsById = { ...snapshot.orderItemsById };
+        const tasksById = { ...snapshot.tasksById };
+        delete ordersById[input.orderId];
+        deletedOrderItemIds.forEach(itemId => delete orderItemsById[itemId]);
+        deletedTaskIds.forEach(taskId => delete tasksById[taskId]);
+        snapshots[input.bakeryId] = { ...snapshot, ordersById, orderItemsById, tasksById };
+        const data: DeleteOrderResult = {
+          kind: "order-deleted",
+          operationId: input.operationId,
+          changes: { deletedOrderIds: [input.orderId], deletedOrderItemIds, deletedTaskIds },
+        };
         operationResults.set(operationKey(input.bakeryId, input.operationId), data);
         return { ok: true, data: clone(data) };
       });

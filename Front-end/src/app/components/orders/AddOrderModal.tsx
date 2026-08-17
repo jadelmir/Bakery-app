@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Search, X, Plus, Check } from "lucide-react";
 import type { Customer } from "../../types";
 import { CUSTOMERS, RECIPES } from "../../constants";
+import { localDateKey } from "../../constants";
 import { useBakeryDomain } from "../../state/provider";
 import { CustomerEditorDialog, type CustomerFormData } from "../customers/CustomerEditorDialog";
 
@@ -21,7 +22,7 @@ export function AddOrderModal({ onClose, onCreatePlan, customers = CUSTOMERS, re
   const [createdCustomers, setCreatedCustomers] = useState<Customer[]>([]);
   const [customerEditorOpen, setCustomerEditorOpen] = useState(false);
   const [items, setItems] = useState<OrderItemDraft[]>([]);
-  const [pickupDate, setPickupDate] = useState("2026-08-05");
+  const [pickupDate, setPickupDate] = useState(() => localDateKey());
   const [pickupTime, setPickupTime] = useState("10:00");
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");

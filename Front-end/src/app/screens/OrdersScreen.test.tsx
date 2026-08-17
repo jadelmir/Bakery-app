@@ -265,6 +265,45 @@ describe("OrdersScreen workflow queue", () => {
     expect(screen.getByRole("region", { name: "Payment summary" })).toHaveTextContent("$10.00 due");
   });
 
+  it("requires confirmation and closes detail after an authoritative delete", async () => {
+    function DeletableOrders() {
+      const [currentOrders, setCurrentOrders] = useState<Order[]>([order()]);
+      return <OrdersScreen now={NOW} onAddOrder={vi.fn()} tasks={[]} orders={currentOrders} onDeleteOrder={async current => {
+        setCurrentOrders(existing => existing.filter(item => item.id !== current.id));
+      }} />;
+    }
+
+    render(<DeletableOrders />);
+    openOrder("order-confirmed", "Confirmed Customer");
+    fireEvent.click(screen.getByRole("button", { name: "Delete order" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Delete this order?" });
+    expect(dialog).toHaveTextContent("permanently remove Confirmed Customer's order");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("complementary", { name: "Order detail" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete order" }));
+    fireEvent.click(within(screen.getByRole("alertdialog", { name: "Delete this order?" })).getByRole("button", { name: "Delete order" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Open order order-confirmed/ })).not.toBeInTheDocument());
+    expect(screen.getByText("No orders match these filters.")).toBeVisible();
+  });
+
+  it("keeps order detail open and supports retry when deletion fails", async () => {
+    const onDeleteOrder = vi.fn()
+      .mockRejectedValueOnce(new Error("Delete failed"))
+      .mockResolvedValueOnce(undefined);
+    renderOrders({ onDeleteOrder });
+    openOrder("order-confirmed", "Confirmed Customer");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete order" }));
+    fireEvent.click(within(screen.getByRole("alertdialog", { name: "Delete this order?" })).getByRole("button", { name: "Delete order" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Delete failed");
+    expect(screen.getByRole("complementary", { name: "Order detail" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete order" }));
+    fireEvent.click(within(screen.getByRole("alertdialog", { name: "Delete this order?" })).getByRole("button", { name: "Delete order" }));
+    await waitFor(() => expect(onDeleteOrder).toHaveBeenCalledTimes(2));
+  });
+
   it("moves an authoritatively completed order from Current to Completed", async () => {
     function CompletingOrders() {
       const [currentOrders, setCurrentOrders] = useState<Order[]>([

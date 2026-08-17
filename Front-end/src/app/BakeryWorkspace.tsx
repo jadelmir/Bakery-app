@@ -290,6 +290,30 @@ function BakeryWorkspaceInner({
     return { ...order, paid: updated.paid, paymentStatus: updated.paymentStatus };
   };
 
+  const deleteOrder = async (order: Order): Promise<void> => {
+    if (manualOrderService) {
+      const updatedSnapshot = await manualOrderService.deleteOrder({
+        bakeryId,
+        operationId: `delete-order-${order.id}-${Date.now()}`,
+        orderId: order.id,
+      });
+      setManualOrderSnapshot(updatedSnapshot);
+      return;
+    }
+
+    const persistedOrderId = snapshot?.ordersById[order.id]
+      ? order.id
+      : Object.values(snapshot?.ordersById ?? {}).find(candidate => `#${candidate.id.slice(-3)}` === order.id)?.id ?? order.id;
+    const result = await domainContext.commands.deleteOrder({
+      bakeryId,
+      operationId: `delete-order-${order.id}-${Date.now()}`,
+      orderId: persistedOrderId,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    setOrders(current => current.filter(candidate => candidate.id !== order.id && candidate.id !== persistedOrderId));
+    setProductionTasks(current => current.filter(task => task.orderId !== order.id && task.orderId !== persistedOrderId));
+  };
+
   const flows = useMemo<ProductionFlow[]>(() => {
     const loadedFlows = Object.values(snapshot?.flowsById ?? {});
     return loadedFlows.length > 0 ? loadedFlows : [...DEFAULT_FLOWS];
@@ -493,7 +517,7 @@ function BakeryWorkspaceInner({
           fallback={location.pathname === "/" ? <Navigate replace to={workspacePath("home")} /> : undefined}
           renderRoute={({ id: screen }) => <>
         {screen === "home"       && <LazyHomeScreen bakeryName={activeMembership?.bakeryName} snapshot={snapshot} onNavigate={navigateToScreen} onAddOrder={() => setAddOrderOpen(true)} />}
-        {screen === "orders"     && <LazyOrdersScreen onAddOrder={() => setAddOrderOpen(true)} onTransitionOrder={transitionOrder} onMarkOrderPaid={markOrderPaid} tasks={displayedTasks} orders={domainOrders} />}
+        {screen === "orders"     && <LazyOrdersScreen onAddOrder={() => setAddOrderOpen(true)} onTransitionOrder={transitionOrder} onMarkOrderPaid={markOrderPaid} onDeleteOrder={deleteOrder} tasks={displayedTasks} orders={domainOrders} />}
         {screen === "invoices"   && (
           <LazyInvoiceList
             invoices={invoices}

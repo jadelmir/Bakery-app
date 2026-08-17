@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
 import type { Order, PaymentStatus, Task } from "../types";
 import { ORDERS, ORDER_STATUS } from "../constants";
@@ -26,6 +26,16 @@ import {
   ProductionProgress,
   ProductionTaskHistory,
 } from "../components/orders/workflow/OrderDetail";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "../components/ui/alert-dialog";
 
 const statusTransitions = {
   confirmed: {
@@ -50,10 +60,11 @@ export type OrderStatusTransition = {
   readonly targetStatus: (typeof statusTransitions)[keyof typeof statusTransitions]["targetStatus"];
 };
 
-export function OrdersScreen({ onAddOrder, onTransitionOrder, onMarkOrderPaid, tasks, orders = ORDERS, now = new Date() }: {
+export function OrdersScreen({ onAddOrder, onTransitionOrder, onMarkOrderPaid, onDeleteOrder, tasks, orders = ORDERS, now = new Date() }: {
   onAddOrder: () => void;
   onTransitionOrder?: (order: Order, transition: OrderStatusTransition) => Promise<Order>;
   onMarkOrderPaid?: (order: Order) => Promise<Order>;
+  onDeleteOrder?: (order: Order) => Promise<void>;
   tasks: Task[];
   orders?: Order[];
   now?: Date;
@@ -69,6 +80,9 @@ export function OrdersScreen({ onAddOrder, onTransitionOrder, onMarkOrderPaid, t
   const [transitionError, setTransitionError] = useState("");
   const [paymentPending, setPaymentPending] = useState(false);
   const [paymentError, setPaymentError] = useState("");
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const selected = selectedOrderId ? orders.find(order => order.id === selectedOrderId) ?? null : null;
   const currentCounts = useMemo(() => getCurrentStageCounts(orders), [orders]);
@@ -108,12 +122,16 @@ export function OrdersScreen({ onAddOrder, onTransitionOrder, onMarkOrderPaid, t
     setSelectedOrderId(order.id);
     setTransitionError("");
     setPaymentError("");
+    setDeleteError("");
+    setDeleteOpen(false);
   };
 
   const closeDetail = () => {
     setSelectedOrderId(null);
     setTransitionError("");
     setPaymentError("");
+    setDeleteError("");
+    setDeleteOpen(false);
   };
 
   const selectedTasks = useMemo(() => tasks
@@ -151,6 +169,22 @@ export function OrdersScreen({ onAddOrder, onTransitionOrder, onMarkOrderPaid, t
       setPaymentError(error instanceof Error ? error.message : "Could not update this payment.");
     } finally {
       setPaymentPending(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selected || !onDeleteOrder || deletePending) return;
+    setDeletePending(true);
+    setDeleteError("");
+    try {
+      await onDeleteOrder(selected);
+      setDeleteOpen(false);
+      closeDetail();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Could not delete this order.");
+      setDeleteOpen(false);
+    } finally {
+      setDeletePending(false);
     }
   };
 
@@ -222,9 +256,15 @@ export function OrdersScreen({ onAddOrder, onTransitionOrder, onMarkOrderPaid, t
               paymentPending={paymentPending}
               paymentError={paymentError}
               paymentDisabled={!onMarkOrderPaid}
+              deletePending={deletePending}
+              deleteError={deleteError}
+              deleteDisabled={!onDeleteOrder}
+              deleteOpen={deleteOpen}
+              onDeleteOpenChange={setDeleteOpen}
               onBack={closeDetail}
               onTransition={handleTransition}
               onMarkPaid={handleMarkPaid}
+              onDelete={handleDelete}
             />
           ) : (
             <div className="rounded-[16px] border border-dashed border-[#D8CEC3] bg-white p-8 text-center">
@@ -238,7 +278,7 @@ export function OrdersScreen({ onAddOrder, onTransitionOrder, onMarkOrderPaid, t
   );
 }
 
-function OrderDetail({ order, tasks, now, transition, transitionPending, transitionError, transitionDisabled, paymentPending, paymentError, paymentDisabled, onBack, onTransition, onMarkPaid }: {
+function OrderDetail({ order, tasks, now, transition, transitionPending, transitionError, transitionDisabled, paymentPending, paymentError, paymentDisabled, deletePending, deleteError, deleteDisabled, deleteOpen, onDeleteOpenChange, onBack, onTransition, onMarkPaid, onDelete }: {
   order: Order;
   tasks: readonly Task[];
   now: Date;
@@ -249,9 +289,15 @@ function OrderDetail({ order, tasks, now, transition, transitionPending, transit
   paymentPending: boolean;
   paymentError: string;
   paymentDisabled: boolean;
+  deletePending: boolean;
+  deleteError: string;
+  deleteDisabled: boolean;
+  deleteOpen: boolean;
+  onDeleteOpenChange: (open: boolean) => void;
   onBack: () => void;
   onTransition: () => void;
   onMarkPaid: () => void;
+  onDelete: () => void;
 }) {
   const hasLifecycle = order.status !== "draft" && order.status !== "cancelled";
 
@@ -266,9 +312,32 @@ function OrderDetail({ order, tasks, now, transition, transitionPending, transit
           <p className="font-['DM_Mono',monospace] text-[11px] text-[#988D84]">{order.id}</p>
           <h2 className="mt-0.5 truncate text-xl font-extrabold text-[#2F2925]">{order.customer}</h2>
         </div>
-        <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${ORDER_STATUS[order.status].textCls} ${ORDER_STATUS[order.status].bgCls}`}>
-          {ORDER_STATUS[order.status].label}
-        </span>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${ORDER_STATUS[order.status].textCls} ${ORDER_STATUS[order.status].bgCls}`}>
+            {ORDER_STATUS[order.status].label}
+          </span>
+          <AlertDialog open={deleteOpen} onOpenChange={onDeleteOpenChange}>
+            <AlertDialogTrigger asChild>
+              <button type="button" disabled={deleteDisabled || deletePending} aria-label="Delete order" className="inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-[#EDC4BF] px-2.5 text-xs font-bold text-[#B8443C] hover:bg-[#FFF3F1] disabled:cursor-not-allowed disabled:opacity-60">
+                <Trash2 aria-hidden="true" size={14} /> Delete
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this order?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently remove {order.customer}'s order and its generated production tasks. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deletePending}>Cancel</AlertDialogCancel>
+                <button type="button" disabled={deletePending} onClick={onDelete} className="inline-flex h-10 items-center justify-center rounded-md bg-[#B8443C] px-4 text-sm font-semibold text-white hover:bg-[#9F3933] disabled:cursor-not-allowed disabled:opacity-60">
+                  {deletePending ? "Deleting…" : "Delete order"}
+                </button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       {hasLifecycle ? (
@@ -280,6 +349,7 @@ function OrderDetail({ order, tasks, now, transition, transitionPending, transit
           {order.status === "draft" ? "This draft has not entered the order lifecycle." : "This order was cancelled and has no next lifecycle action."}
         </p>
       )}
+      {deleteError && <p role="alert" className="mt-3 rounded-[10px] bg-[#FCE9E7] px-3.5 py-3 text-xs font-semibold text-[#B8443C]">{deleteError} Try again.</p>}
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <PickupSummary order={order} now={now} />

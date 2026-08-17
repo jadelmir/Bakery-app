@@ -12,6 +12,8 @@ import type {
   UpdateRecipeInput,
   UpdateCustomerInput,
   DomainEntityChanges,
+  DeleteOrderInput,
+  DeleteOrderResult,
   MarkOrderPaidInput,
   MarkOrderPaidResult,
   SaveProductionFlowInput,
@@ -74,11 +76,17 @@ export function applyDomainChanges(snapshot: BakeryDomainSnapshot, changes: Doma
   const flowIdsToDelete = changes.deletedFlowIds ?? [];
   const nextFlows = { ...snapshot.flowsById, ...flowUpdates };
   flowIdsToDelete.forEach((flowId) => delete nextFlows[flowId]);
+  const nextOrders = changes.orders ? { ...snapshot.ordersById, ...Object.fromEntries(changes.orders.map((entity) => [entity.id, entity])) } : { ...snapshot.ordersById };
+  const nextOrderItems = changes.orderItems ? { ...snapshot.orderItemsById, ...Object.fromEntries(changes.orderItems.map((entity) => [entity.id, entity])) } : { ...snapshot.orderItemsById };
+  const nextTasks = changes.tasks ? { ...snapshot.tasksById, ...Object.fromEntries(changes.tasks.map((entity) => [entity.id, entity])) } : { ...snapshot.tasksById };
+  (changes.deletedOrderIds ?? []).forEach((id) => delete nextOrders[id]);
+  (changes.deletedOrderItemIds ?? []).forEach((id) => delete nextOrderItems[id]);
+  (changes.deletedTaskIds ?? []).forEach((id) => delete nextTasks[id]);
   return {
     ...snapshot,
-    ordersById: changes.orders ? { ...snapshot.ordersById, ...Object.fromEntries(changes.orders.map((entity) => [entity.id, entity])) } : snapshot.ordersById,
-    orderItemsById: changes.orderItems ? { ...snapshot.orderItemsById, ...Object.fromEntries(changes.orderItems.map((entity) => [entity.id, entity])) } : snapshot.orderItemsById,
-    tasksById: changes.tasks ? { ...snapshot.tasksById, ...Object.fromEntries(changes.tasks.map((entity) => [entity.id, entity])) } : snapshot.tasksById,
+    ordersById: nextOrders,
+    orderItemsById: nextOrderItems,
+    tasksById: nextTasks,
     customersById: changes.customers ? { ...snapshot.customersById, ...Object.fromEntries(changes.customers.map((entity) => [entity.id, entity])) } : snapshot.customersById,
     inventoryById: changes.inventoryItems ? { ...snapshot.inventoryById, ...Object.fromEntries(changes.inventoryItems.map((entity) => [entity.id, entity])) } : snapshot.inventoryById,
     inventoryTransactionsById: changes.inventoryTransactions ? { ...snapshot.inventoryTransactionsById, ...Object.fromEntries(changes.inventoryTransactions.map((entity) => [entity.id, entity])) } : snapshot.inventoryTransactionsById,
@@ -126,6 +134,7 @@ export function bakeryDomainReducer(state: BakeryDomainState, action: DomainActi
 export interface BakeryDomainCommands {
   load(bakeryId: BakeryId): Promise<void>;
   createOrder(input: CreateOrderInput): Promise<void>;
+  deleteOrder(input: DeleteOrderInput): Promise<AdapterResult<DeleteOrderResult>>;
   createRecipe(input: CreateRecipeInput): Promise<AdapterResult<RecipeResult>>;
   updateRecipe(input: UpdateRecipeInput): Promise<AdapterResult<RecipeResult>>;
   createCustomer(input: CreateCustomerInput): Promise<AdapterResult<CustomerResult>>;
@@ -173,6 +182,13 @@ export function createBakeryDomainController(adapter: BakeryDomainAdapter): Bake
       const result = await adapter.createOrder(input);
       if (result.ok) dispatch({ type: "mutation-succeeded", bakeryId: input.bakeryId, operationId: input.operationId, changes: result.data.changes });
       else dispatch({ type: "mutation-failed", bakeryId: input.bakeryId, operationId: input.operationId, error: result.error });
+    },
+    async deleteOrder(input) {
+      dispatch({ type: "mutation-started", bakeryId: input.bakeryId, operationId: input.operationId });
+      const result = await adapter.deleteOrder(input);
+      if (result.ok) dispatch({ type: "mutation-succeeded", bakeryId: input.bakeryId, operationId: input.operationId, changes: result.data.changes });
+      else dispatch({ type: "mutation-failed", bakeryId: input.bakeryId, operationId: input.operationId, error: result.error });
+      return result;
     },
     async createRecipe(input) {
       dispatch({ type: "mutation-started", bakeryId: input.bakeryId, operationId: input.operationId });

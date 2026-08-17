@@ -10,6 +10,7 @@ interface QueryResult<T> {
 
 interface RowQuery<T> extends PromiseLike<QueryResult<T[]>> {
   select(columns?: string): RowQuery<T>;
+  delete(): RowQuery<T>;
   update(values: Record<string, DatabaseScalar>): RowQuery<T>;
   eq(column: string, value: DatabaseScalar): RowQuery<T>;
   in(column: string, values: readonly string[]): RowQuery<T>;
@@ -176,9 +177,16 @@ export interface MarkManualOrderPaidInput {
   orderId: string;
 }
 
+export interface DeleteManualOrderInput {
+  bakeryId: string;
+  operationId: string;
+  orderId: string;
+}
+
 export interface ManualOrderService {
   loadSnapshot(bakeryId: string): Promise<ManualOrderSnapshot>;
   createOrder(input: CreateManualOrderInput): Promise<ManualOrderSnapshot>;
+  deleteOrder(input: DeleteManualOrderInput): Promise<ManualOrderSnapshot>;
   transitionOrder(input: TransitionManualOrderInput): Promise<ManualOrderSnapshot>;
   markOrderPaid(input: MarkManualOrderPaidInput): Promise<ManualOrderSnapshot>;
 }
@@ -263,6 +271,25 @@ export function createManualOrderService(client: ManualOrderClient = getSupabase
       if (error) throw new Error(`Failed to create order: ${error.message}`);
       if (!data?.order_id) throw new Error("Order creation returned no order identifier.");
       return this.loadSnapshot(input.bakeryId);
+    },
+
+    async deleteOrder(input) {
+      if (!input.operationId.trim()) throw new Error("An operation identifier is required to delete an order.");
+      const { data, error } = await client
+        .from("orders")
+        .delete()
+        .eq("bakery_id", input.bakeryId)
+        .eq("id", input.orderId)
+        .select("id");
+      if (error) throw new Error(`Failed to delete order: ${error.message}`);
+      if (!data?.some(row => text(row.id) === input.orderId)) {
+        throw new Error("The order is not available in the active bakery. Refresh and try again.");
+      }
+      const snapshot = await this.loadSnapshot(input.bakeryId);
+      if (snapshot.orders.some(order => order.id === input.orderId) || snapshot.tasks.some(task => task.orderId === input.orderId)) {
+        throw new Error("The order deletion could not be confirmed from the refreshed bakery snapshot.");
+      }
+      return snapshot;
     },
 
     async transitionOrder(input) {

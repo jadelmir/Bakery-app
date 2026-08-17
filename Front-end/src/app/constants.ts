@@ -96,6 +96,12 @@ export const CAT_COLORS: Record<string, string> = {
 
 export const BAKERY_TIME_ZONE = "America/New_York";
 
+export const localDateKey = (value = new Date()) => [
+  value.getFullYear(),
+  String(value.getMonth() + 1).padStart(2, "0"),
+  String(value.getDate()).padStart(2, "0"),
+].join("-");
+
 export const dateKey = (value: Date | string) => new Intl.DateTimeFormat("en-CA", {
   timeZone: BAKERY_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
 }).format(typeof value === "string" ? new Date(value) : value);

@@ -354,6 +354,7 @@ export interface BakeryDomainSnapshot {
 export type DomainOperation =
   | "load-snapshot"
   | "create-order"
+  | "delete-order"
   | "transition-order-status"
   | "mark-order-paid"
   | "update-task"
@@ -449,6 +450,10 @@ export interface TransitionOrderStatusInput extends MutationScope {
 }
 
 export interface MarkOrderPaidInput extends MutationScope {
+  readonly orderId: EntityId;
+}
+
+export interface DeleteOrderInput extends MutationScope {
   readonly orderId: EntityId;
 }
 
@@ -612,6 +617,9 @@ export interface DomainEntityChanges {
   readonly storefrontProducts?: readonly DomainStorefrontProduct[];
   readonly pickupWindows?: readonly DomainPickupWindow[];
   readonly closedDates?: readonly DomainClosedDate[];
+  readonly deletedOrderIds?: readonly EntityId[];
+  readonly deletedOrderItemIds?: readonly EntityId[];
+  readonly deletedTaskIds?: readonly EntityId[];
 }
 
 export interface SaveProductionFlowInput extends MutationScope {
@@ -642,6 +650,12 @@ export interface TransitionOrderStatusResult {
 
 export interface MarkOrderPaidResult {
   readonly kind: "order-marked-paid";
+  readonly operationId: string;
+  readonly changes: DomainEntityChanges;
+}
+
+export interface DeleteOrderResult {
+  readonly kind: "order-deleted";
   readonly operationId: string;
   readonly changes: DomainEntityChanges;
 }
@@ -700,6 +714,7 @@ export interface SnapshotPort {
 
 export interface OrdersPort {
   createOrder(input: CreateOrderInput): Promise<AdapterResult<CreateOrderResult>>;
+  deleteOrder(input: DeleteOrderInput): Promise<AdapterResult<DeleteOrderResult>>;
   transitionOrderStatus(input: TransitionOrderStatusInput): Promise<AdapterResult<TransitionOrderStatusResult>>;
   markOrderPaid(input: MarkOrderPaidInput): Promise<AdapterResult<MarkOrderPaidResult>>;
 }
