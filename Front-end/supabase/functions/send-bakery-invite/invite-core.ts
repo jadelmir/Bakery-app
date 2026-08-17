@@ -1,5 +1,13 @@
 export type BakeryRole = "owner" | "manager" | "staff";
 
+export interface InvitationEmailRequest {
+  email: string;
+  redirectTo: string;
+  actionLink: string;
+  bakeryName: string;
+  role: BakeryRole;
+}
+
 export interface InviteDependencies {
   appUrl: string;
   verifyUser(accessToken: string): Promise<{ id: string } | null>;
@@ -11,7 +19,9 @@ export interface InviteDependencies {
     tokenHash: string;
     expiresAt: string;
   }): Promise<{ id: string }>;
-  sendEmail(email: string, redirectTo: string): Promise<void>;
+  getBakeryName(bakeryId: string): Promise<string>;
+  createAuthLink(input: { email: string; redirectTo: string }): Promise<string>;
+  sendEmail(input: InvitationEmailRequest): Promise<void>;
   revokeInvitation(invitationId: string): Promise<void>;
   now?: () => number;
 }
@@ -122,7 +132,17 @@ export async function handleInviteRequest(
   const redirectOrigin = resolveRedirectOrigin(request.origin, dependencies.appUrl);
   const redirectTo = `${redirectOrigin}/?invitation=${encodeURIComponent(token)}`;
   try {
-    await dependencies.sendEmail(email, redirectTo);
+    const [bakeryName, actionLink] = await Promise.all([
+      dependencies.getBakeryName(bakeryId),
+      dependencies.createAuthLink({ email, redirectTo }),
+    ]);
+    await dependencies.sendEmail({
+      email,
+      redirectTo,
+      actionLink,
+      bakeryName,
+      role: role as BakeryRole,
+    });
   } catch {
     await dependencies.revokeInvitation(invitation.id);
     return {

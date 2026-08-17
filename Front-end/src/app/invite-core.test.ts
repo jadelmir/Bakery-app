@@ -11,6 +11,8 @@ function dependencies(overrides: Partial<InviteDependencies> = {}): InviteDepend
     appUrl: "http://127.0.0.1:5173",
     verifyUser: async () => ({ id: "user-1" }),
     createInvitation: async () => ({ id: "invite-1" }),
+    getBakeryName: async () => "J'adore",
+    createAuthLink: async ({ redirectTo }) => `https://auth.example.test/magic?redirect_to=${encodeURIComponent(redirectTo)}`,
     sendEmail: async () => undefined,
     revokeInvitation: async () => undefined,
     now: () => Date.UTC(2026, 6, 29),
@@ -46,7 +48,9 @@ describe("invitation Edge Function core", () => {
     expect(result).toMatchObject({ status: 201, body: { invitationId: "invite-1", status: "pending" } });
     expect(JSON.stringify(result.body)).not.toContain("invitation=");
     expect(createInvitation.mock.calls[0][0].email).toBe("person@example.com");
-    expect(sendEmail.mock.calls[0][1]).toContain("?invitation=");
+    expect(sendEmail.mock.calls[0][0].redirectTo).toContain("?invitation=");
+    expect(sendEmail.mock.calls[0][0].actionLink).toContain("redirect_to=");
+    expect(sendEmail.mock.calls[0][0].bakeryName).toBe("J'adore");
   });
 
   it("keeps the local invitation callback on the browser's active localhost origin", async () => {
@@ -55,7 +59,7 @@ describe("invitation Edge Function core", () => {
       { ...validRequest, origin: "http://localhost:5173" },
       dependencies({ sendEmail }),
     );
-    expect(sendEmail.mock.calls[0][1]).toMatch(/^http:\/\/localhost:5173\/\?invitation=/);
+    expect(sendEmail.mock.calls[0][0].redirectTo).toMatch(/^http:\/\/localhost:5173\/\?invitation=/);
   });
 
   it("preserves the hosted application base path while validating only its origin", async () => {
@@ -65,7 +69,7 @@ describe("invitation Edge Function core", () => {
       dependencies({ appUrl: "https://jadelmir.github.io/Bakery-app/", sendEmail }),
     );
 
-    expect(sendEmail.mock.calls[0][1]).toMatch(/^https:\/\/jadelmir\.github\.io\/Bakery-app\/\?invitation=/);
+    expect(sendEmail.mock.calls[0][0].redirectTo).toMatch(/^https:\/\/jadelmir\.github\.io\/Bakery-app\/\?invitation=/);
   });
 
   it.each([

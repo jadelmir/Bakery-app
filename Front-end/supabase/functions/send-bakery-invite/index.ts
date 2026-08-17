@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js";
 import { handleInviteRequest } from "./invite-core.ts";
+import { sendInvitationEmail } from "./invitation-mail.ts";
 
 function response(
   body: Record<string, unknown> | null,
@@ -71,12 +72,40 @@ Deno.serve(async request => {
         if (error) throw error;
         return { id: data.id };
       },
-      async sendEmail(email, redirectTo) {
-        const { error } = await userClient.auth.signInWithOtp({
+      async getBakeryName(bakeryId) {
+        const { data, error } = await adminClient
+          .from("bakeries")
+          .select("name")
+          .eq("id", bakeryId)
+          .maybeSingle();
+        if (error || !data?.name) throw error ?? new Error("Bakery was not found.");
+        return data.name;
+      },
+      async createAuthLink({ email, redirectTo }) {
+        const { data, error } = await adminClient.auth.admin.generateLink({
+          type: "magiclink",
           email,
-          options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
+          options: { redirectTo },
         });
-        if (error) throw error;
+        if (error || !data.properties?.action_link) {
+          throw error ?? new Error("Auth invitation link could not be generated.");
+        }
+        return data.properties.action_link;
+      },
+      async sendEmail({ email, actionLink, bakeryName, role }) {
+        await sendInvitationEmail(
+          {
+            recipientEmail: email,
+            bakeryName,
+            role,
+            actionLink,
+          },
+          {
+            apiKey: Deno.env.get("RESEND_API_KEY"),
+            from: Deno.env.get("INVITATION_FROM_EMAIL"),
+            mailpitUrl: Deno.env.get("MAILPIT_URL"),
+          },
+        );
       },
       async revokeInvitation(invitationId) {
         await adminClient
