@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-08-16
+goal: Repair the discovered staging regressions in persisted manual-order visibility and hosted bakery invitation delivery.

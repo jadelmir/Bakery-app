@@ -37,7 +37,7 @@ This document defines every API endpoint, RPC function, HTTP request payload, re
   ```
 - **Response Format**: `{ "ok": true, "invitationId": "<uuid>" }`
 - **Frontend Consumer**: [TeamManagement.tsx](file:///c:/Users/Jad/Desktop/BakeryApp/Front-end/src/app/TeamManagement.tsx)
-- **Current Status**: 🟢 Active & Connected to Edge Function.
+- **Current Status**: 🟡 Implemented locally; hosted staging readiness requires the full `APP_URL` (`https://jadelmir.github.io/Bakery-app/`), Auth redirect allow-list, SMTP/sender, function-secret, deployment-version, and synthetic invite acceptance checks documented in [Frontend CI/CD](../deployment/frontend-ci-cd.md).
 
 ---
 

@@ -58,6 +58,16 @@ describe("invitation Edge Function core", () => {
     expect(sendEmail.mock.calls[0][1]).toMatch(/^http:\/\/localhost:5173\/\?invitation=/);
   });
 
+  it("preserves the hosted application base path while validating only its origin", async () => {
+    const sendEmail = vi.fn(async () => undefined);
+    await handleInviteRequest(
+      { ...validRequest, origin: "https://jadelmir.github.io" },
+      dependencies({ appUrl: "https://jadelmir.github.io/Bakery-app/", sendEmail }),
+    );
+
+    expect(sendEmail.mock.calls[0][1]).toMatch(/^https:\/\/jadelmir\.github\.io\/Bakery-app\/\?invitation=/);
+  });
+
   it.each([
     ["23505", 409, "already exists"],
     ["P0001", 429, "rate limit"],

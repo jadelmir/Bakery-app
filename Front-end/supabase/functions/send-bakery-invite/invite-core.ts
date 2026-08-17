@@ -43,7 +43,8 @@ function resolveRedirectOrigin(requestOrigin: string, appUrl: string) {
   if (requestOrigin === "http://localhost:5173" || requestOrigin === "http://127.0.0.1:5173") {
     return requestOrigin;
   }
-  return app.origin;
+  const applicationPath = app.pathname === "/" ? "" : app.pathname.replace(/\/+$/, "");
+  return `${app.origin}${applicationPath}`;
 }
 
 export function randomToken() {

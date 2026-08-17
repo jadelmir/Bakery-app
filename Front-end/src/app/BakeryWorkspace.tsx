@@ -27,6 +27,7 @@ import { AddOrderModal } from "./components/orders/AddOrderModal";
 import { getUpcomingOrderCount } from "./components/orders/orderPresentation";
 import type { Screen } from "./types";
 import type { ManualOrderService, ManualOrderSnapshot } from "../lib/supabase/manualOrderAdapter";
+import { selectOrderProjection } from "./manualOrderProjection";
 import { createSupabaseCustomerAdapter } from "../lib/supabase/customerAdapter";
 import { createSupabaseInventoryAdapter } from "../features/inventory/inventoryAdapter";
 import { createSupabaseProductionFlowAdapter } from "../features/production/productionFlowAdapter";
@@ -303,21 +304,21 @@ function BakeryWorkspaceInner({
   };
 
   const domainOrders = useMemo(() => {
+    if (manualOrderService && manualOrderSnapshot) {
+      return selectOrderProjection({
+        persistedServiceActive: true,
+        manualOrderSnapshot,
+        domainSnapshot: snapshot,
+        localOrders: orders,
+      });
+    }
     if (!snapshot?.recipesById && manualOrderSnapshot) {
-      const customerNames = new Map(manualOrderSnapshot.customers.map(customer => [customer.id, customer.name]));
-      return manualOrderSnapshot.orders.map(order => ({
-        id: order.id,
-        customer: customerNames.get(order.customerId) ?? "Customer",
-        items: order.items.map(item => ({ product: item.product, qty: item.quantity, price: item.unitPrice })),
-        pickup: order.pickupDate,
-        pickupTime: order.pickupTime,
-        status: order.status,
-        total: order.total,
-        paid: order.paid,
-        paymentStatus: order.paymentStatus,
-        notes: order.notes,
-        createdAt: order.createdAt,
-      }));
+      return selectOrderProjection({
+        persistedServiceActive: false,
+        manualOrderSnapshot,
+        domainSnapshot: snapshot,
+        localOrders: orders,
+      });
     }
     if (!snapshot?.ordersById) return orders;
     const rawOrders = Object.values(snapshot.ordersById);
@@ -342,7 +343,7 @@ function BakeryWorkspaceInner({
         notes: o.notes,
       };
     });
-  }, [manualOrderSnapshot, snapshot, orders]);
+  }, [manualOrderService, manualOrderSnapshot, snapshot, orders]);
 
   const displayedTasks = useMemo(() => {
     if (!manualOrderSnapshot) return productionTasks;

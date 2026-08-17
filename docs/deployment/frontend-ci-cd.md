@@ -43,6 +43,20 @@ Only browser-safe configuration is supplied to Vite. Database passwords, Supabas
 
 The workflow publishes `Front-end/dist` with the official GitHub Pages Actions and records the deployment URL through the `github-pages` environment.
 
+## Staging invitation readiness
+
+The deployed application base URL is `https://jadelmir.github.io/Bakery-app/`. The Supabase Edge Function's server-only `APP_URL` must use that full URL, including `/Bakery-app/`; the browser sends only the origin, so the function validates `https://jadelmir.github.io` and builds the delivered callback under the configured path.
+
+Before claiming invitation readiness for staging, record evidence for all of the following:
+
+1. The linked staging project has the current migrations and the deployed `send-bakery-invite` function version.
+2. The function has `APP_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` configured through Supabase secrets. Secret values never enter GitHub Pages or browser code.
+3. Supabase Auth `site_url` is the same hosted base URL and its redirect allow-list includes the exact invitation callback under `/Bakery-app/`.
+4. Auth SMTP/sender delivery is configured for staging and a synthetic invitation reaches the intended invitee.
+5. The synthetic invite is accepted by the verified invitee and a membership reload shows exactly one membership for the designated bakery.
+
+Local Vitest/Mailpit success is supporting evidence only; it does not replace this hosted check. If delivery initiation fails, the UI must report failure and the pending invitation must be revoked or otherwise unusable.
+
 ## SPA deep-link behavior
 
 GitHub Pages has no server-side SPA rewrite rule. Directly requesting `/Bakery-app/orders` therefore reaches the Pages 404 handler before React can start.
