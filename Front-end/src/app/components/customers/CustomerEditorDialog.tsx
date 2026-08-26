@@ -53,7 +53,7 @@ export function CustomerEditorDialog({
   const [type, setType] = useState<CustomerType>(customer?.type ?? "retail");
   const [address, setAddress] = useState(customer?.address ?? "");
   const [notes, setNotes] = useState(customer?.notes ?? "");
-  
+
   const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -79,7 +79,6 @@ export function CustomerEditorDialog({
     setIsSubmitting(false);
   }, [customer, isOpen]);
 
-  // Handle Escape key to close dialog
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
@@ -97,9 +96,7 @@ export function CustomerEditorDialog({
     if (!name.trim()) {
       newErrors.name = "Customer name is required.";
     }
-    if (!email.trim()) {
-      newErrors.email = "Email address is required.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       newErrors.email = "Please enter a valid email address.";
     }
 
@@ -115,13 +112,13 @@ export function CustomerEditorDialog({
     setIsSubmitting(true);
     try {
       const result = await onSave({
-      id: customer?.id,
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      type,
-      address: address.trim(),
-      notes: notes.trim(),
+        id: customer?.id,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        type,
+        address: address.trim(),
+        notes: notes.trim(),
       });
 
       if (result && !result.ok) {
@@ -147,7 +144,6 @@ export function CustomerEditorDialog({
         aria-labelledby={titleId}
         className="w-full max-w-lg overflow-hidden bg-white rounded-[24px] shadow-2xl border border-[#E5DDD3] transform transition-all"
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#E5DDD3] bg-[#F6F0E8]">
           <div className="flex items-center space-x-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-[12px] bg-white text-[#7A3E24] border border-[#E5DDD3] shadow-xs">
@@ -174,9 +170,7 @@ export function CustomerEditorDialog({
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Name Input */}
           <div>
             <label
               htmlFor={nameId}
@@ -206,15 +200,13 @@ export function CustomerEditorDialog({
             )}
           </div>
 
-          {/* Email & Phone grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Email Input */}
             <div>
               <label
                 htmlFor={emailId}
                 className="block text-xs font-bold text-[#6F655E] uppercase mb-1"
               >
-                Email Address <span className="text-rose-500">*</span>
+                Email Address
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-[#988D84]">
@@ -225,7 +217,7 @@ export function CustomerEditorDialog({
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
+                  placeholder="name@example.com (optional)"
                   className={`w-full pl-9 pr-3.5 py-2.5 text-xs rounded-[12px] border bg-white text-[#2F2925] focus:outline-none focus:border-[#7A3E24] transition-all ${
                     errors.email
                       ? "border-rose-400 focus:border-rose-500"
@@ -238,7 +230,6 @@ export function CustomerEditorDialog({
               )}
             </div>
 
-            {/* Phone Input */}
             <div>
               <label
                 htmlFor={phoneId}
@@ -262,7 +253,6 @@ export function CustomerEditorDialog({
             </div>
           </div>
 
-          {/* Customer Type Select/Toggle */}
           <div>
             <label
               htmlFor={typeId}
@@ -286,7 +276,6 @@ export function CustomerEditorDialog({
             </div>
           </div>
 
-          {/* Address Textarea */}
           <div>
             <label
               htmlFor={addressId}
@@ -309,7 +298,6 @@ export function CustomerEditorDialog({
             </div>
           </div>
 
-          {/* Notes Textarea */}
           <div>
             <label
               htmlFor={notesId}
@@ -332,7 +320,6 @@ export function CustomerEditorDialog({
             </div>
           </div>
 
-          {/* Action Footer */}
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-[#E5DDD3]">
             {submitError && (
               <p role="alert" className="mr-auto text-xs font-semibold text-rose-500" aria-live="polite">
