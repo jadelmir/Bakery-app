@@ -20,6 +20,13 @@
   </head>
   <body>
     <div id="root"></div>
+    <div
+      id="app-version"
+      aria-label="Application version"
+      style="position:fixed;top:8px;right:10px;z-index:9999;padding:3px 8px;border:1px solid rgba(229,221,211,.95);border-radius:999px;background:rgba(255,255,255,.92);color:#988D84;font:700 10px/1 system-ui,sans-serif;letter-spacing:.02em;pointer-events:none;box-shadow:0 1px 6px rgba(47,41,37,.06)"
+    >
+      v%VITE_APP_VERSION%
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
