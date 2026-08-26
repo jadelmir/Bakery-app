@@ -3,6 +3,7 @@ import { reportFor } from "../reporting";
 import { BAKERY_TIME_ZONE, dateKey } from "../constants";
 import type { BakeryDomainSnapshot, DomainCustomer, DomainInventoryItem, DomainOrder, DomainOrderItem, DomainTask } from "../domain/types";
 import type { BakeryDomainState } from "./domainState";
+import { getManualOrderProjectionSnapshot } from "../manualOrderProjection";
 
 const values = <T>(records: Readonly<Record<string, T>>): T[] => Object.values(records);
 const byScheduledAt = (left: DomainTask, right: DomainTask) => left.scheduledAt.localeCompare(right.scheduledAt);
@@ -54,15 +55,51 @@ const productSummaryFor = (items: readonly DomainOrderItem[]) => {
   return order.map(product => `${quantities.get(product)} ${product}`).join(" · ");
 };
 
+const manualHomeOrders = (snapshot: ReturnType<typeof getManualOrderProjectionSnapshot>): readonly OrderReadModel[] => {
+  if (!snapshot) return [];
+  const customerNames = new Map(snapshot.customers.map(customer => [customer.id, customer.name]));
+  const customers = new Map(snapshot.customers.map(customer => [customer.id, customer]));
+  return snapshot.orders.map(order => ({
+    id: order.id,
+    customerId: order.customerId,
+    customerName: customerNames.get(order.customerId) ?? "Unknown customer",
+    itemIds: order.items.map(item => item.id),
+    pickupDate: order.pickupDate,
+    pickupTime: order.pickupTime,
+    status: order.status,
+    total: order.total,
+    paid: order.paid,
+    paymentStatus: order.paymentStatus,
+    notes: order.notes,
+    items: order.items.map(item => ({
+      id: item.id,
+      orderId: item.orderId,
+      recipeId: item.recipeId,
+      product: item.product,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+    })),
+    customer: customers.get(order.customerId),
+  })).map(({ customer: _customer, ...order }) => order);
+};
+
 export const selectHomeOrderCalendar = (snapshot: BakeryDomainSnapshot, referenceDate = new Date()): readonly HomeOrderDayGroup[] => {
   const today = dateKey(referenceDate);
   const horizonEnd = addCalendarDays(today, 6);
-  const orders = selectOrders(snapshot)
+
+  const domainOrders = selectOrders(snapshot);
+  const manualOrders = manualHomeOrders(getManualOrderProjectionSnapshot());
+  const mergedById = new Map<string, OrderReadModel>();
+  domainOrders.forEach(order => mergedById.set(order.id, order));
+  manualOrders.forEach(order => mergedById.set(order.id, order));
+
+  const manualCustomers = new Map((getManualOrderProjectionSnapshot()?.customers ?? []).map(customer => [customer.id, customer]));
+  const orders = [...mergedById.values()]
     .filter(order => !["completed", "cancelled"].includes(order.status))
     .filter(order => order.pickupDate >= today && order.pickupDate <= horizonEnd)
     .map(order => ({
       ...order,
-      customer: snapshot.customersById[order.customerId],
+      customer: snapshot.customersById[order.customerId] ?? manualCustomers.get(order.customerId),
       balance: Math.max(0, order.total - order.paid),
       productSummary: productSummaryFor(order.items),
     }))
