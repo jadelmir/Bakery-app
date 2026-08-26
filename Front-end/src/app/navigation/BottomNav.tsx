@@ -18,7 +18,7 @@ export function BottomNav({ screen: _screen, setScreen: _setScreen }: { screen?:
   const currentRoute = resolveWorkspaceRoute(location.pathname)?.route;
 
   return (
-    <nav className="lg:hidden sticky bottom-0 bg-white border-t border-[#E5DDD3] z-30">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5DDD3] z-30">
       <div className="flex items-stretch justify-around">
         {BOTTOM_NAV.map(({ Icon, label, routeId }) => {
           const active = routeId === "more"
