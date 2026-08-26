@@ -26,12 +26,11 @@ function OrderSummaryCard({ order, onOpen }: { order: HomeOrderReadModel; onOpen
       type="button"
       onClick={onOpen}
       className="w-full rounded-[14px] border border-[#E5DDD3] bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4643B] active:scale-[0.99]"
-      aria-label={`Open order ${order.id} for ${order.customerName}`}
+      aria-label={`Open order for ${order.customerName}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-['DM_Mono',monospace] text-[11px] text-[#988D84]">{order.id}</span>
             <Chip cfg={ORDER_STATUS[order.status]} />
           </div>
           <p className="mt-1 truncate text-sm font-bold text-[#2F2925]">{order.customerName}</p>
@@ -84,7 +83,6 @@ function OrderDetailPanel({ order, onNavigate }: { order: HomeOrderReadModel; on
     <>
       <SheetHeader className="border-b border-[#E5DDD3] bg-[#FBF8F3] pr-12">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-['DM_Mono',monospace] text-xs text-[#988D84]">{order.id}</span>
           <Chip cfg={ORDER_STATUS[order.status]} />
         </div>
         <SheetTitle className="text-xl font-extrabold text-[#2F2925]">{order.customerName}</SheetTitle>
@@ -161,7 +159,7 @@ export function HomeOrderCalendar({ snapshot, onNavigate, referenceDate = new Da
         <SectionHeader title="Upcoming Orders" />
         <div className="rounded-[20px] border border-[#E5DDD3] bg-white p-6 shadow-xs">
           <div className="h-4 w-40 animate-pulse rounded-full bg-[#F0E9E0]" />
-          <div className="mt-3 h-16 animate-pulse rounded-[14px] bg-[#FBF8F3]" />
+          <div className="mt-3 h-16 rounded-[14px] bg-[#FBF8F3]" />
         </div>
       </section>
     );
