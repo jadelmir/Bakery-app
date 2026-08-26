@@ -74,6 +74,29 @@ function DayGroup({ day, onOpen }: { day: HomeOrderDayGroup; onOpen: (order: Hom
   );
 }
 
+function ItemGroup({ product, quantity, orderCount, customers }: { product: string; quantity: number; orderCount: number; customers: string[] }) {
+  return (
+    <div className="rounded-[14px] border border-[#E5DDD3] bg-white p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-extrabold text-[#2F2925]">{product}</p>
+          <p className="mt-1 text-xs font-semibold text-[#6F655E]">
+            {orderCount} {orderCount === 1 ? "order" : "orders"} · {customers.length} {customers.length === 1 ? "customer" : "customers"}
+          </p>
+        </div>
+        <div className="flex-shrink-0 rounded-full bg-[#F3DED1] px-3 py-1.5 text-sm font-extrabold text-[#7A3E24]">
+          {quantity}×
+        </div>
+      </div>
+      {customers.length > 0 ? (
+        <p className="mt-3 border-t border-[#F0E9E0] pt-3 text-xs text-[#988D84] truncate" title={customers.join(", ")}>
+          {customers.join(", ")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function DetailLine({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return <div className="flex items-start gap-2.5 text-sm text-[#6F655E]">{icon}<span className="min-w-0">{children}</span></div>;
 }
@@ -150,8 +173,26 @@ function OrderDetailPanel({ order, onNavigate }: { order: HomeOrderReadModel; on
 
 export function HomeOrderCalendar({ snapshot, onNavigate, referenceDate = new Date() }: HomeOrderCalendarProps) {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [view, setView] = useState<"customers" | "items">("customers");
   const days = useMemo(() => snapshot ? selectHomeOrderCalendar(snapshot, referenceDate) : [], [referenceDate, snapshot]);
   const selectedOrder = days.flatMap(day => day.orders).find(order => order.id === selectedOrderId);
+
+  const itemGroups = useMemo(() => {
+    const groups = new Map<string, { quantity: number; orders: Set<string>; customers: Set<string> }>();
+    days.flatMap(day => day.orders).forEach(order => {
+      order.items.forEach(item => {
+        const key = item.product.trim() || "Unnamed item";
+        const existing = groups.get(key) ?? { quantity: 0, orders: new Set<string>(), customers: new Set<string>() };
+        existing.quantity += item.quantity;
+        existing.orders.add(order.id);
+        existing.customers.add(order.customerName);
+        groups.set(key, existing);
+      });
+    });
+    return Array.from(groups.entries())
+      .map(([product, group]) => ({ product, quantity: group.quantity, orderCount: group.orders.size, customers: Array.from(group.customers).sort() }))
+      .sort((left, right) => right.quantity - left.quantity || left.product.localeCompare(right.product));
+  }, [days]);
 
   if (!snapshot) {
     return (
@@ -167,24 +208,55 @@ export function HomeOrderCalendar({ snapshot, onNavigate, referenceDate = new Da
 
   return (
     <section aria-label="Upcoming orders" className="space-y-3">
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <SectionHeader title="Upcoming Orders" />
           <p className="mt-1 text-xs font-semibold text-[#988D84]">Today and the next six days</p>
         </div>
-        <CalendarDays size={20} className="mb-1 text-[#B4643B]" aria-hidden="true" />
+        <div className="inline-flex self-start rounded-[12px] border border-[#E5DDD3] bg-white p-1 shadow-xs" role="group" aria-label="Upcoming orders view">
+          <button
+            type="button"
+            onClick={() => setView("customers")}
+            aria-pressed={view === "customers"}
+            className={`rounded-[9px] px-3 py-1.5 text-xs font-bold transition-colors ${view === "customers" ? "bg-[#7A3E24] text-white" : "text-[#6F655E] hover:bg-[#F6F0E8]"}`}
+          >
+            Customers
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("items")}
+            aria-pressed={view === "items"}
+            className={`rounded-[9px] px-3 py-1.5 text-xs font-bold transition-colors ${view === "items" ? "bg-[#7A3E24] text-white" : "text-[#6F655E] hover:bg-[#F6F0E8]"}`}
+          >
+            Items
+          </button>
+        </div>
       </div>
 
-      {days.length > 0 ? (
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-          {days.map(day => <DayGroup key={day.dateKey} day={day} onOpen={order => setSelectedOrderId(order.id)} />)}
-        </div>
+      {view === "customers" ? (
+        days.length > 0 ? (
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {days.map(day => <DayGroup key={day.dateKey} day={day} onOpen={order => setSelectedOrderId(order.id)} />)}
+          </div>
+        ) : (
+          <div className="rounded-[20px] border border-dashed border-[#D8C9BB] bg-[#FBF8F3] p-8 text-center">
+            <CalendarDays size={28} className="mx-auto text-[#B4643B]" aria-hidden="true" />
+            <h3 className="mt-3 text-sm font-extrabold text-[#2F2925]">No upcoming orders</h3>
+            <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[#6F655E]">Your calendar is clear for the next seven days. Add an order when you are ready.</p>
+          </div>
+        )
       ) : (
-        <div className="rounded-[20px] border border-dashed border-[#D8C9BB] bg-[#FBF8F3] p-8 text-center">
-          <CalendarDays size={28} className="mx-auto text-[#B4643B]" aria-hidden="true" />
-          <h3 className="mt-3 text-sm font-extrabold text-[#2F2925]">No upcoming orders</h3>
-          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[#6F655E]">Your calendar is clear for the next seven days. Add an order when you are ready.</p>
-        </div>
+        itemGroups.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {itemGroups.map(group => <ItemGroup key={group.product} {...group} />)}
+          </div>
+        ) : (
+          <div className="rounded-[20px] border border-dashed border-[#D8C9BB] bg-[#FBF8F3] p-8 text-center">
+            <ShoppingBag size={28} className="mx-auto text-[#B4643B]" aria-hidden="true" />
+            <h3 className="mt-3 text-sm font-extrabold text-[#2F2925]">No upcoming items</h3>
+            <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[#6F655E]">There are no items scheduled for the next seven days.</p>
+          </div>
+        )
       )}
 
       <Sheet open={Boolean(selectedOrder)} onOpenChange={open => { if (!open) setSelectedOrderId(null); }}>
