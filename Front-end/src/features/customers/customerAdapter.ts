@@ -90,7 +90,7 @@ export function mapCustomerRow(row: CustomerRow): DomainCustomer {
   return {
     id: text(row.id, "id"),
     name: text(row.name, "name"),
-    email: text(row.email, "email"),
+    email: optionalText(row.email) ?? "",
     phone: optionalText(row.phone),
     type: customerType(row.type),
     address: optionalText(row.address),
@@ -198,8 +198,7 @@ export function createSupabaseCustomerAdapter(
       if (!input.operationId.trim()) return validation("An operation ID is required for a safe retry.", "operationId");
       const name = normalizeRequired(input.name, "name");
       if (!name) return validation("Customer name is required.", "name");
-      const email = normalizeRequired(input.email, "email");
-      if (!email) return validation("Customer email is required.", "email");
+      const email = input.email?.trim() ?? "";
 
       // Deliberately omit input.customerId: the database default owns persisted UUIDs.
       const { data, error } = await client
@@ -231,11 +230,7 @@ export function createSupabaseCustomerAdapter(
         if (!name) return validation("Customer name is required.", "name");
         patch.name = name;
       }
-      if (input.email !== undefined) {
-        const email = normalizeRequired(input.email, "email");
-        if (!email) return validation("Customer email is required.", "email");
-        patch.email = email;
-      }
+      if (input.email !== undefined) patch.email = input.email.trim();
       if (input.phone !== undefined) patch.phone = input.phone.trim() || null;
       if (input.type !== undefined) patch.type = input.type;
       if (input.address !== undefined) patch.address = input.address.trim() || null;
