@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "./client";
+import { getManualOrderProjectionSnapshot } from "../../app/manualOrderProjection";
 import type {
   AdapterFailure,
   AdapterResult,
@@ -51,7 +52,7 @@ interface OrderRow {
 }
 
 interface OrderQuery extends PromiseLike<QueryResult<OrderRow[]>> {
-  select<TResult = OrderRow[]>(columns: string): OrderQuery;
+  select<TResult = OrderRow[]>(columns: string): OrderQuery<TResult>;
   eq(column: "bakery_id", value: string): OrderQuery;
 }
 
@@ -131,12 +132,30 @@ function buildCustomerOrderTotals(rows: readonly OrderRow[]): ReadonlyMap<string
   return totals;
 }
 
+function liveManualOrderTotals(customerId: string): CustomerOrderTotals | undefined {
+  const snapshot = getManualOrderProjectionSnapshot();
+  if (!snapshot) return undefined;
+
+  return snapshot.orders.reduce<CustomerOrderTotals>((totals, order) => {
+    if (order.customerId !== customerId || order.status === "cancelled") return totals;
+    return {
+      totalOrders: totals.totalOrders + 1,
+      totalSpent: totals.totalSpent + order.total,
+    };
+  }, { totalOrders: 0, totalSpent: 0 });
+}
+
 function withOrderTotals(customer: DomainCustomer, totals: ReadonlyMap<string, CustomerOrderTotals>): DomainCustomer {
   const customerTotals = totals.get(customer.id) ?? { totalOrders: 0, totalSpent: 0 };
   return {
     ...customer,
-    totalOrders: customerTotals.totalOrders,
-    totalSpent: Math.round(customerTotals.totalSpent * 100) / 100,
+    get totalOrders() {
+      return liveManualOrderTotals(customer.id)?.totalOrders ?? customerTotals.totalOrders;
+    },
+    get totalSpent() {
+      const spent = liveManualOrderTotals(customer.id)?.totalSpent;
+      return spent === undefined ? customerTotals.totalSpent : Math.round(spent * 100) / 100;
+    },
   };
 }
 
