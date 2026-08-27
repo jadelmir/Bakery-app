@@ -12,6 +12,7 @@ import type {
 } from "../../app/domain/types";
 
 const CUSTOMER_COLUMNS = "id,bakery_id,name,email,phone,type,address,notes";
+const ORDER_COLUMNS = "customer_id,total_cents,status";
 
 export interface CustomerRow {
   id: string | null;
@@ -43,8 +44,20 @@ interface CustomerQuery<T> extends PromiseLike<QueryResult<T>> {
   single(): CustomerQuery<CustomerRow>;
 }
 
+interface OrderRow {
+  customer_id: string | null;
+  total_cents: number | null;
+  status: string | null;
+}
+
+interface OrderQuery extends PromiseLike<QueryResult<OrderRow[]>> {
+  select<TResult = OrderRow[]>(columns: string): OrderQuery;
+  eq(column: "bakery_id", value: string): OrderQuery;
+}
+
 interface CustomerClient {
   from(table: "customers"): CustomerQuery<unknown>;
+  from(table: "orders"): OrderQuery;
 }
 
 interface QueryError {
@@ -95,6 +108,35 @@ export function mapCustomerRow(row: CustomerRow): DomainCustomer {
     type: customerType(row.type),
     address: optionalText(row.address),
     notes: optionalText(row.notes),
+  };
+}
+
+interface CustomerOrderTotals {
+  totalOrders: number;
+  totalSpent: number;
+}
+
+function buildCustomerOrderTotals(rows: readonly OrderRow[]): ReadonlyMap<string, CustomerOrderTotals> {
+  const totals = new Map<string, CustomerOrderTotals>();
+
+  rows.forEach(row => {
+    if (!row.customer_id || row.status === "cancelled") return;
+
+    const current = totals.get(row.customer_id) ?? { totalOrders: 0, totalSpent: 0 };
+    current.totalOrders += 1;
+    current.totalSpent += Number(row.total_cents ?? 0) / 100;
+    totals.set(row.customer_id, current);
+  });
+
+  return totals;
+}
+
+function withOrderTotals(customer: DomainCustomer, totals: ReadonlyMap<string, CustomerOrderTotals>): DomainCustomer {
+  const customerTotals = totals.get(customer.id) ?? { totalOrders: 0, totalSpent: 0 };
+  return {
+    ...customer,
+    totalOrders: customerTotals.totalOrders,
+    totalSpent: Math.round(customerTotals.totalSpent * 100) / 100,
   };
 }
 
@@ -176,15 +218,28 @@ export function createSupabaseCustomerAdapter(
     async loadCustomers(scope) {
       if (!scope.bakeryId.trim()) return validation("A bakery ID is required.", "bakeryId");
 
-      const { data, error } = await client
-        .from("customers")
-        .select<CustomerRow[]>(CUSTOMER_COLUMNS)
-        .eq("bakery_id", scope.bakeryId)
-        .order("name", { ascending: true });
-      if (error) return failure(mapError(error, "Failed to load customers"));
+      const [customerResult, orderResult] = await Promise.all([
+        client
+          .from("customers")
+          .select<CustomerRow[]>(CUSTOMER_COLUMNS)
+          .eq("bakery_id", scope.bakeryId)
+          .order("name", { ascending: true }),
+        client
+          .from("orders")
+          .select<OrderRow[]>(ORDER_COLUMNS)
+          .eq("bakery_id", scope.bakeryId),
+      ]);
+
+      if (customerResult.error) return failure(mapError(customerResult.error, "Failed to load customers"));
+      if (orderResult.error) return failure(mapError(orderResult.error, "Failed to load customer order totals"));
 
       try {
-        return { ok: true, data: (data ?? []).filter((row) => row.bakery_id === scope.bakeryId).map(mapCustomerRow) };
+        const customerRows = (customerResult.data ?? []).filter((row) => row.bakery_id === scope.bakeryId);
+        const orderTotals = buildCustomerOrderTotals(orderResult.data ?? []);
+        return {
+          ok: true,
+          data: customerRows.map(row => withOrderTotals(mapCustomerRow(row), orderTotals)),
+        };
       } catch (mappingError) {
         return failure({
           kind: "unknown",
