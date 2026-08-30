@@ -42,6 +42,9 @@ Deno.serve(async request => {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const mailClient = createClient(supabaseUrl, publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -72,7 +75,7 @@ Deno.serve(async request => {
         return { id: data.id };
       },
       async sendEmail(email, redirectTo) {
-        const { error } = await userClient.auth.signInWithOtp({
+        const { error } = await mailClient.auth.signInWithOtp({
           email,
           options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
         });
