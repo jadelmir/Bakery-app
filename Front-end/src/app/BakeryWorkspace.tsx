@@ -132,11 +132,35 @@ function mergeManualOrdersIntoSnapshot(snapshot: BakeryDomainSnapshot | undefine
     };
   });
 
+  const tasksById = { ...snapshot.tasksById };
+  const recipeNames = new Map(manualOrderSnapshot.recipes.map(recipe => [recipe.id, recipe.name]));
+  manualOrderSnapshot.tasks.forEach(task => {
+    tasksById[task.id] = {
+      id: task.id,
+      orderId: task.orderId,
+      orderItemId: task.recipeId,
+      flowId: task.flowId,
+      flowStepId: task.flowStepId,
+      title: task.title,
+      product: recipeNames.get(task.recipeId) ?? "Product",
+      quantity: task.quantity,
+      scheduledAt: task.scheduledAt,
+      status: task.status,
+      instructions: "Generated production task",
+      category: task.category,
+      duration: task.duration,
+      urgency: task.urgency,
+      delayMinutes: task.delayMinutes,
+      skipReason: task.skipReason,
+    };
+  });
+
   return {
     ...snapshot,
     customersById,
     ordersById,
     orderItemsById,
+    tasksById,
   };
 }
 
