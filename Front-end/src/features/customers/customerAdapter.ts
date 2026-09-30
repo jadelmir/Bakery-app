@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "./client";
+import { getManualOrderProjectionSnapshot } from "../../app/manualOrderProjection";
 import type {
   AdapterFailure,
   AdapterResult,
@@ -12,6 +13,7 @@ import type {
 } from "../../app/domain/types";
 
 const CUSTOMER_COLUMNS = "id,bakery_id,name,email,phone,type,address,notes";
+const ORDER_COLUMNS = "customer_id,total_cents,status";
 
 export interface CustomerRow {
   id: string | null;
@@ -43,8 +45,20 @@ interface CustomerQuery<T> extends PromiseLike<QueryResult<T>> {
   single(): CustomerQuery<CustomerRow>;
 }
 
+interface OrderRow {
+  customer_id: string | null;
+  total_cents: number | null;
+  status: string | null;
+}
+
+interface OrderQuery extends PromiseLike<QueryResult<OrderRow[]>> {
+  select<TResult = OrderRow[]>(columns: string): OrderQuery<TResult>;
+  eq(column: "bakery_id", value: string): OrderQuery;
+}
+
 interface CustomerClient {
   from(table: "customers"): CustomerQuery<unknown>;
+  from(table: "orders"): OrderQuery;
 }
 
 interface QueryError {
@@ -90,11 +104,58 @@ export function mapCustomerRow(row: CustomerRow): DomainCustomer {
   return {
     id: text(row.id, "id"),
     name: text(row.name, "name"),
-    email: text(row.email, "email"),
+    email: optionalText(row.email) ?? "",
     phone: optionalText(row.phone),
     type: customerType(row.type),
     address: optionalText(row.address),
     notes: optionalText(row.notes),
+  };
+}
+
+interface CustomerOrderTotals {
+  totalOrders: number;
+  totalSpent: number;
+}
+
+function buildCustomerOrderTotals(rows: readonly OrderRow[]): ReadonlyMap<string, CustomerOrderTotals> {
+  const totals = new Map<string, CustomerOrderTotals>();
+
+  rows.forEach(row => {
+    if (!row.customer_id || row.status === "cancelled") return;
+
+    const current = totals.get(row.customer_id) ?? { totalOrders: 0, totalSpent: 0 };
+    current.totalOrders += 1;
+    current.totalSpent += Number(row.total_cents ?? 0) / 100;
+    totals.set(row.customer_id, current);
+  });
+
+  return totals;
+}
+
+function liveManualOrderTotals(customerId: string): CustomerOrderTotals | undefined {
+  const snapshot = getManualOrderProjectionSnapshot();
+  if (!snapshot) return undefined;
+
+  return snapshot.orders.reduce<CustomerOrderTotals>((totals, order) => {
+    if (order.customerId !== customerId || order.status === "cancelled") return totals;
+    return {
+      totalOrders: totals.totalOrders + 1,
+      totalSpent: totals.totalSpent + order.total,
+    };
+  }, { totalOrders: 0, totalSpent: 0 });
+}
+
+function withOrderTotals(customer: DomainCustomer, totals: ReadonlyMap<string, CustomerOrderTotals>): DomainCustomer {
+  const customerTotals = totals.get(customer.id) ?? { totalOrders: 0, totalSpent: 0 };
+  return {
+    ...customer,
+    get totalOrders() {
+      return liveManualOrderTotals(customer.id)?.totalOrders ?? customerTotals.totalOrders;
+    },
+    get totalSpent() {
+      const spent = liveManualOrderTotals(customer.id)?.totalSpent;
+      return spent === undefined ? customerTotals.totalSpent : Math.round(spent * 100) / 100;
+    },
   };
 }
 
@@ -176,15 +237,28 @@ export function createSupabaseCustomerAdapter(
     async loadCustomers(scope) {
       if (!scope.bakeryId.trim()) return validation("A bakery ID is required.", "bakeryId");
 
-      const { data, error } = await client
-        .from("customers")
-        .select<CustomerRow[]>(CUSTOMER_COLUMNS)
-        .eq("bakery_id", scope.bakeryId)
-        .order("name", { ascending: true });
-      if (error) return failure(mapError(error, "Failed to load customers"));
+      const [customerResult, orderResult] = await Promise.all([
+        client
+          .from("customers")
+          .select<CustomerRow[]>(CUSTOMER_COLUMNS)
+          .eq("bakery_id", scope.bakeryId)
+          .order("name", { ascending: true }),
+        client
+          .from("orders")
+          .select<OrderRow[]>(ORDER_COLUMNS)
+          .eq("bakery_id", scope.bakeryId),
+      ]);
+
+      if (customerResult.error) return failure(mapError(customerResult.error, "Failed to load customers"));
+      if (orderResult.error) return failure(mapError(orderResult.error, "Failed to load customer order totals"));
 
       try {
-        return { ok: true, data: (data ?? []).filter((row) => row.bakery_id === scope.bakeryId).map(mapCustomerRow) };
+        const customerRows = (customerResult.data ?? []).filter((row) => row.bakery_id === scope.bakeryId);
+        const orderTotals = buildCustomerOrderTotals(orderResult.data ?? []);
+        return {
+          ok: true,
+          data: customerRows.map(row => withOrderTotals(mapCustomerRow(row), orderTotals)),
+        };
       } catch (mappingError) {
         return failure({
           kind: "unknown",
@@ -198,8 +272,7 @@ export function createSupabaseCustomerAdapter(
       if (!input.operationId.trim()) return validation("An operation ID is required for a safe retry.", "operationId");
       const name = normalizeRequired(input.name, "name");
       if (!name) return validation("Customer name is required.", "name");
-      const email = normalizeRequired(input.email, "email");
-      if (!email) return validation("Customer email is required.", "email");
+      const email = input.email?.trim() ?? "";
 
       // Deliberately omit input.customerId: the database default owns persisted UUIDs.
       const { data, error } = await client
@@ -231,11 +304,7 @@ export function createSupabaseCustomerAdapter(
         if (!name) return validation("Customer name is required.", "name");
         patch.name = name;
       }
-      if (input.email !== undefined) {
-        const email = normalizeRequired(input.email, "email");
-        if (!email) return validation("Customer email is required.", "email");
-        patch.email = email;
-      }
+      if (input.email !== undefined) patch.email = input.email.trim();
       if (input.phone !== undefined) patch.phone = input.phone.trim() || null;
       if (input.type !== undefined) patch.type = input.type;
       if (input.address !== undefined) patch.address = input.address.trim() || null;

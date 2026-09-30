@@ -4,6 +4,16 @@ import type { Order } from "./types";
 
 type OrderSnapshotShape = Pick<BakeryDomainSnapshot, "recipesById"> | null | undefined;
 
+let latestManualOrderSnapshot: ManualOrderSnapshot | null = null;
+
+export function setManualOrderProjectionSnapshot(snapshot: ManualOrderSnapshot | null): void {
+  latestManualOrderSnapshot = snapshot;
+}
+
+export function getManualOrderProjectionSnapshot(): ManualOrderSnapshot | null {
+  return latestManualOrderSnapshot;
+}
+
 export function projectManualOrders(snapshot: ManualOrderSnapshot): Order[] {
   const customerNames = new Map(snapshot.customers.map(customer => [customer.id, customer.name]));
 
@@ -33,6 +43,8 @@ export function selectOrderProjection({
   domainSnapshot: OrderSnapshotShape;
   localOrders: Order[];
 }): Order[] {
+  setManualOrderProjectionSnapshot(manualOrderSnapshot);
+
   if (persistedServiceActive && manualOrderSnapshot) {
     return projectManualOrders(manualOrderSnapshot);
   }

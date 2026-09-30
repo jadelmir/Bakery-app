@@ -15,7 +15,7 @@ import { selectSnapshot } from "./state/selectors";
 import { DirtyFormGuardProvider, UnsavedChangesDialog, useGuardedExit, useGuardedNavigate } from "./navigation/dirtyFormGuard";
 import { WorkspaceRoutes } from "./navigation/WorkspaceRoutes";
 import { workspacePath } from "./navigation/routeRegistry";
-import type { BakeryDomainAdapter } from "./domain/types";
+import type { BakeryDomainAdapter, BakeryDomainSnapshot } from "./domain/types";
 import type { AuthAdapter, AuthSession } from "./auth";
 import type { BakeryMembership, WorkspaceAdapter } from "./workspace";
 import type { Order, Task } from "./types";
@@ -88,6 +88,82 @@ function FeatureScreenLoading() {
   );
 }
 
+function mergeManualOrdersIntoSnapshot(snapshot: BakeryDomainSnapshot | undefined, manualOrderSnapshot: ManualOrderSnapshot | null): BakeryDomainSnapshot | undefined {
+  if (!snapshot || !manualOrderSnapshot) return snapshot;
+
+  const customersById = { ...snapshot.customersById };
+  manualOrderSnapshot.customers.forEach(customer => {
+    customersById[customer.id] = {
+      id: customer.id,
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone || undefined,
+      address: customer.address || undefined,
+      notes: customer.notes || undefined,
+      type: "retail",
+    };
+  });
+
+  const ordersById = { ...snapshot.ordersById };
+  const orderItemsById = { ...snapshot.orderItemsById };
+  manualOrderSnapshot.orders.forEach(order => {
+    const itemIds = order.items.map(item => {
+      orderItemsById[item.id] = {
+        id: item.id,
+        orderId: item.orderId,
+        recipeId: item.recipeId,
+        product: item.product,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+      };
+      return item.id;
+    });
+    ordersById[order.id] = {
+      id: order.id,
+      customerId: order.customerId,
+      itemIds,
+      pickupDate: order.pickupDate,
+      pickupTime: order.pickupTime,
+      status: order.status,
+      total: order.total,
+      paid: order.paid,
+      paymentStatus: order.paymentStatus,
+      notes: order.notes,
+    };
+  });
+
+  const tasksById = { ...snapshot.tasksById };
+  const recipeNames = new Map(manualOrderSnapshot.recipes.map(recipe => [recipe.id, recipe.name]));
+  manualOrderSnapshot.tasks.forEach(task => {
+    tasksById[task.id] = {
+      id: task.id,
+      orderId: task.orderId,
+      orderItemId: task.recipeId,
+      flowId: task.flowId,
+      flowStepId: task.flowStepId,
+      title: task.title,
+      product: recipeNames.get(task.recipeId) ?? "Product",
+      quantity: task.quantity,
+      scheduledAt: task.scheduledAt,
+      status: task.status,
+      instructions: "Generated production task",
+      category: task.category,
+      duration: task.duration,
+      urgency: task.urgency,
+      delayMinutes: task.delayMinutes,
+      skipReason: task.skipReason,
+    };
+  });
+
+  return {
+    ...snapshot,
+    customersById,
+    ordersById,
+    orderItemsById,
+    tasksById,
+  };
+}
+
 function BakeryWorkspaceInner({
   onLogout = () => undefined,
   activeMembership,
@@ -157,6 +233,7 @@ function BakeryWorkspaceInner({
       });
     return () => { mounted = false; };
   }, [activeMembership?.bakeryId, manualOrderService]);
+  const homeSnapshot = useMemo(() => mergeManualOrdersIntoSnapshot(snapshot, manualOrderSnapshot), [snapshot, manualOrderSnapshot]);
   const starterBuilds = useMemo(() => buildStarterPlans(productionTasks as unknown as ProductionTask[]), [productionTasks]);
   const recordTaskDeduction = (task: Task) => {
     if (deductionTrigger !== "task-completion" || task.status === "completed") return;
@@ -220,7 +297,6 @@ function BakeryWorkspaceInner({
     });
     navigateToScreen("orders");
   };
-
   const transitionOrder = async (order: Order, transition: OrderStatusTransition): Promise<Order> => {
     if (manualOrderService) {
       const snapshot = await manualOrderService.transitionOrder({
@@ -262,7 +338,6 @@ function BakeryWorkspaceInner({
     if (!result.ok) throw new Error(result.error.message);
     return { ...order, status: transition.targetStatus };
   };
-
   const markOrderPaid = async (order: Order): Promise<Order> => {
     if (manualOrderService) {
       const updatedSnapshot = await manualOrderService.markOrderPaid({
@@ -289,7 +364,6 @@ function BakeryWorkspaceInner({
     if (!updated) throw new Error("The payment update returned no order result. Please reload and try again.");
     return { ...order, paid: updated.paid, paymentStatus: updated.paymentStatus };
   };
-
   const deleteOrder = async (order: Order): Promise<void> => {
     if (manualOrderService) {
       const updatedSnapshot = await manualOrderService.deleteOrder({
@@ -313,7 +387,6 @@ function BakeryWorkspaceInner({
     setOrders(current => current.filter(candidate => candidate.id !== order.id && candidate.id !== persistedOrderId));
     setProductionTasks(current => current.filter(task => task.orderId !== order.id && task.orderId !== persistedOrderId));
   };
-
   const flows = useMemo<ProductionFlow[]>(() => {
     const loadedFlows = Object.values(snapshot?.flowsById ?? {});
     return loadedFlows.length > 0 ? loadedFlows : [...DEFAULT_FLOWS];
@@ -326,7 +399,6 @@ function BakeryWorkspaceInner({
     });
     if (!result.ok) throw new Error(result.error.message);
   };
-
   const domainOrders = useMemo(() => {
     if (manualOrderService && manualOrderSnapshot) {
       return selectOrderProjection({
@@ -368,7 +440,6 @@ function BakeryWorkspaceInner({
       };
     });
   }, [manualOrderService, manualOrderSnapshot, snapshot, orders]);
-
   const displayedTasks = useMemo(() => {
     if (!manualOrderSnapshot) return productionTasks;
     return manualOrderSnapshot.tasks.map(task => ({
@@ -389,7 +460,6 @@ function BakeryWorkspaceInner({
       skipReason: task.skipReason,
     } satisfies Task));
   }, [manualOrderSnapshot, productionTasks]);
-
   const domainRecipes = useMemo(() => {
     if (snapshot?.recipesById) {
       return Object.values(snapshot.recipesById).map(r => ({
@@ -413,7 +483,6 @@ function BakeryWorkspaceInner({
       ingredients: [],
     }));
   }, [manualOrderSnapshot, snapshot]);
-
   const domainIngredients = useMemo(() => {
     if (!snapshot?.inventoryById) return undefined;
     return Object.values(snapshot.inventoryById).map(i => ({
@@ -516,7 +585,7 @@ function BakeryWorkspaceInner({
         <WorkspaceRoutes
           fallback={location.pathname === "/" ? <Navigate replace to={workspacePath("home")} /> : undefined}
           renderRoute={({ id: screen }) => <>
-        {screen === "home"       && <LazyHomeScreen bakeryName={activeMembership?.bakeryName} snapshot={snapshot} onNavigate={navigateToScreen} onAddOrder={() => setAddOrderOpen(true)} />}
+        {screen === "home"       && <LazyHomeScreen bakeryName={activeMembership?.bakeryName} snapshot={homeSnapshot} onNavigate={navigateToScreen} onAddOrder={() => setAddOrderOpen(true)} />}
         {screen === "orders"     && <LazyOrdersScreen onAddOrder={() => setAddOrderOpen(true)} onTransitionOrder={transitionOrder} onMarkOrderPaid={markOrderPaid} onDeleteOrder={deleteOrder} tasks={displayedTasks} orders={domainOrders} />}
         {screen === "invoices"   && (
           <LazyInvoiceList
@@ -831,7 +900,7 @@ export function BakeryWorkspace(props: {
                 ordersById: {},
                 orderItemsById: {},
                 tasksById: {},
-            inventoryTransactionsById: {},
+                inventoryTransactionsById: {},
                 invoicesById: {},
                 paymentsById: {},
                 invoiceEventsById: {},

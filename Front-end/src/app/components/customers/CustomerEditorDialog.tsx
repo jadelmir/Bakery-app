@@ -97,9 +97,7 @@ export function CustomerEditorDialog({
     if (!name.trim()) {
       newErrors.name = "Customer name is required.";
     }
-    if (!email.trim()) {
-      newErrors.email = "Email address is required.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       newErrors.email = "Please enter a valid email address.";
     }
 
@@ -214,7 +212,7 @@ export function CustomerEditorDialog({
                 htmlFor={emailId}
                 className="block text-xs font-bold text-[#6F655E] uppercase mb-1"
               >
-                Email Address <span className="text-rose-500">*</span>
+                Email Address
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-[#988D84]">
@@ -225,7 +223,7 @@ export function CustomerEditorDialog({
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
+                  placeholder="name@example.com (optional)"
                   className={`w-full pl-9 pr-3.5 py-2.5 text-xs rounded-[12px] border bg-white text-[#2F2925] focus:outline-none focus:border-[#7A3E24] transition-all ${
                     errors.email
                       ? "border-rose-400 focus:border-rose-500"
