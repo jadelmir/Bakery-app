@@ -16,6 +16,7 @@ export type InventoryBaseUnit = "g" | "ml" | "unit";
 export type InventoryTransactionType =
   | "purchase"
   | "manual_adjustment"
+  | "opening_balance"
   | "production_usage"
   | "production_output"
   | "reservation"
@@ -65,6 +66,7 @@ export interface DomainRecipe {
   readonly id: EntityId;
   readonly name: string;
   readonly yield: string;
+  readonly prepLeadDays: number;
   readonly batchCost: number;
   readonly sellingPrice: number;
   readonly flowId: EntityId | null;
@@ -132,7 +134,7 @@ export interface DomainInventoryTransaction {
   readonly sourceKey: string;
   readonly itemId: EntityId;
   readonly quantityChange: number;
-  readonly reason: "task-completed" | "order-completed" | "restock" | "adjustment" | "purchase" | "production-usage" | "production-output" | "reservation";
+  readonly reason: "task-completed" | "order-completed" | "restock" | "adjustment" | "opening-balance" | "purchase" | "production-usage" | "production-output" | "reservation";
   readonly transactionType?: InventoryTransactionType;
   readonly baseUnit?: InventoryBaseUnit;
   readonly unitCost?: number;
@@ -470,6 +472,7 @@ export interface CreateIngredientInput extends MutationScope {
   readonly packagePrice: number;
   readonly minLevel: number;
   readonly kind: "ingredient" | "packaging";
+  readonly initialOnHand?: number;
 }
 
 export interface UpdateIngredientInput extends MutationScope {
@@ -552,6 +555,7 @@ export interface CreateRecipeInput extends MutationScope {
   readonly recipeId: EntityId;
   readonly name: string;
   readonly yield: string;
+  readonly prepLeadDays?: number;
   readonly sellingPrice: number;
   readonly flowId: EntityId | null;
   readonly ingredients: readonly RecipeIngredientInput[];
@@ -561,6 +565,7 @@ export interface UpdateRecipeInput extends MutationScope {
   readonly recipeId: EntityId;
   readonly name?: string;
   readonly yield?: string;
+  readonly prepLeadDays?: number;
   readonly sellingPrice?: number;
   readonly flowId?: EntityId | null;
   readonly ingredients?: readonly RecipeIngredientInput[];

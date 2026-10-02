@@ -138,6 +138,10 @@ describe("Supabase Auth client helpers", () => {
     expect(getPasswordRecoveryRedirect({ origin: "http://127.0.0.1:5173" })).toBe(
       "http://127.0.0.1:5173/auth/reset-password",
     );
+    expect(getPasswordRecoveryRedirect(
+      { origin: "https://jadelmir.github.io" },
+      "/Bakery-app/",
+    )).toBe("https://jadelmir.github.io/Bakery-app/auth/reset-password");
   });
 
   it("initializes auth session from client", async () => {
@@ -238,4 +242,3 @@ describe("AuthProvider context provider", () => {
     expect(result.current.session).toBeNull();
   });
 });
-

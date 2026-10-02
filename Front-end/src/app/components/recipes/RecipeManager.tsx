@@ -31,6 +31,7 @@ export interface DomainRecipeItem {
   readonly id: string;
   readonly name: string;
   readonly yield: string;
+  readonly prepLeadDays?: number;
   readonly batchCost: number;
   readonly sellingPrice: number;
   readonly flowId: string | null;
@@ -78,6 +79,7 @@ const INITIAL_RECIPES: readonly DomainRecipeItem[] = [
     id: "r1",
     name: "Sourdough Loaf",
     yield: "1 loaf · 850g",
+    prepLeadDays: 1,
     batchCost: 3.2,
     sellingPrice: 14.0,
     flowId: "flow-sourdough",
@@ -92,6 +94,7 @@ const INITIAL_RECIPES: readonly DomainRecipeItem[] = [
     id: "r2",
     name: "Focaccia",
     yield: "1 tray",
+    prepLeadDays: 1,
     batchCost: 2.4,
     sellingPrice: 8.0,
     flowId: "flow-focaccia",
@@ -271,6 +274,7 @@ export function RecipeManager({
     id?: string;
     name: string;
     yield: string;
+    prepLeadDays: number;
     sellingPrice: number;
     batchCost: number;
     flowId: string | null;

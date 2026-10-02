@@ -19,7 +19,7 @@ import type { BakeryDomainAdapter, BakeryDomainSnapshot } from "./domain/types";
 import type { AuthAdapter, AuthSession } from "./auth";
 import type { BakeryMembership, WorkspaceAdapter } from "./workspace";
 import type { Order, Task } from "./types";
-import { ORDERS, planTasks } from "./constants";
+import { localDateKey, ORDERS, planTasks } from "./constants";
 import { Sidebar } from "./navigation/Sidebar";
 import { ReturnToBakerySelectorDialog } from "./navigation/ReturnToBakerySelectorDialog";
 import { BottomNav, FAB } from "./navigation/BottomNav";
@@ -36,6 +36,7 @@ import { createSupabaseInvoiceAdapter } from "../features/invoicing/invoiceAdapt
 import type { OrderStatusTransition } from "./screens/OrdersScreen";
 import type { InventoryItemDraft } from "./components/inventory/InventoryItemCreateDialog";
 import type { InventoryBaseUnit } from "./domain/types";
+import { deriveOnboardingProgress, type OnboardingState } from "./onboarding";
 
 const USE_SYNTHETIC_FIXTURES =
   import.meta.env.MODE === "test" || import.meta.env.VITE_USE_MOCK_BACKEND === "true";
@@ -48,6 +49,9 @@ const LazyOrdersScreen = lazy(() =>
 );
 const LazyProductionScreen = lazy(() =>
   import("./screens/ProductionScreen").then(module => ({ default: module.ProductionScreen })),
+);
+const LazyPrepListScreen = lazy(() =>
+  import("./screens/PrepListScreen").then(module => ({ default: module.PrepListScreen })),
 );
 const LazyInventoryScreen = lazy(() =>
   import("./screens/InventoryScreen").then(module => ({ default: module.InventoryScreen })),
@@ -78,6 +82,9 @@ const LazyStorefrontDashboard = lazy(() =>
 );
 const LazyAccountProfileScreen = lazy(() =>
   import("./AccountProfileScreen").then(module => ({ default: module.AccountProfileScreen })),
+);
+const LazyOnboardingScreen = lazy(() =>
+  import("./screens/OnboardingScreen").then(module => ({ default: module.OnboardingScreen })),
 );
 
 function FeatureScreenLoading() {
@@ -201,9 +208,20 @@ function BakeryWorkspaceInner({
   const navigateRaw = useNavigate();
   const requestBakerySwitch = useGuardedExit("bakery-switch");
   const requestReturnToSelector = useGuardedExit("dismiss");
-  const navigateToScreen = (screen: Screen) => navigate(workspacePath(screen));
+  const [prepListInitialDate, setPrepListInitialDate] = useState<string | undefined>();
+  const navigateToScreen = (screen: Screen) => {
+    if (screen !== "prep-list") setPrepListInitialDate(undefined);
+    navigate(workspacePath(screen));
+  };
+  const openTodayPrepList = () => {
+    setPrepListInitialDate(localDateKey());
+    navigateToScreen("prep-list");
+  };
   const [addOrderOpen, setAddOrderOpen] = useState(false);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [onboardingStatus, setOnboardingStatus] = useState<"loading" | "active" | "dismissed" | "completed">("loading");
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingMarkers, setOnboardingMarkers] = useState<OnboardingState>({ dismissedAt: null, completedAt: null, prepListViewedAt: null });
   const [manualOrderSnapshot, setManualOrderSnapshot] = useState<ManualOrderSnapshot | null>(null);
   const [manualOrderLoadError, setManualOrderLoadError] = useState("");
   const [orders, setOrders] = useState<Order[]>(() => USE_SYNTHETIC_FIXTURES ? ORDERS : []);
@@ -234,6 +252,53 @@ function BakeryWorkspaceInner({
     return () => { mounted = false; };
   }, [activeMembership?.bakeryId, manualOrderService]);
   const homeSnapshot = useMemo(() => mergeManualOrdersIntoSnapshot(snapshot, manualOrderSnapshot), [snapshot, manualOrderSnapshot]);
+  const onboardingProgress = useMemo(
+    () => deriveOnboardingProgress(homeSnapshot),
+    [homeSnapshot],
+  );
+
+  useEffect(() => {
+    setOnboardingOpen(false);
+    if (!workspaceAdapter || !session?.user.id || activeMembership?.role !== "owner") {
+      setOnboardingStatus("completed");
+      return;
+    }
+    let mounted = true;
+    setOnboardingStatus("loading");
+    void workspaceAdapter.getOnboardingState(session.user.id, activeMembership.bakeryId)
+      .then(markers => {
+        if (!mounted) return;
+        setOnboardingMarkers(markers);
+        setOnboardingStatus(markers.completedAt ? "completed" : markers.dismissedAt ? "dismissed" : "active");
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setOnboardingMarkers({ dismissedAt: null, completedAt: null, prepListViewedAt: null });
+        setOnboardingStatus("active");
+      });
+    return () => { mounted = false; };
+  }, [activeMembership?.bakeryId, activeMembership?.role, session?.user.id, workspaceAdapter]);
+
+  useEffect(() => {
+    if (onboardingStatus !== "active" || !onboardingProgress.isComplete || onboardingMarkers.completedAt || !workspaceAdapter || !session?.user.id || !activeMembership) return;
+    const completedAt = new Date().toISOString();
+    setOnboardingMarkers(current => ({ ...current, completedAt }));
+    setOnboardingStatus("completed");
+    void workspaceAdapter.updateOnboardingState(session.user.id, activeMembership.bakeryId, { completedAt });
+  }, [activeMembership, onboardingMarkers.completedAt, onboardingProgress.isComplete, onboardingStatus, session?.user.id, workspaceAdapter]);
+
+  const skipOnboarding = () => {
+    const dismissedAt = new Date().toISOString();
+    setOnboardingMarkers(current => ({ ...current, dismissedAt }));
+    setOnboardingStatus("dismissed");
+    setOnboardingOpen(false);
+    if (workspaceAdapter && session?.user.id && activeMembership) {
+      void workspaceAdapter.updateOnboardingState(session.user.id, activeMembership.bakeryId, { dismissedAt });
+    }
+  };
+
+  const openOnboarding = () => setOnboardingOpen(true);
+
   const starterBuilds = useMemo(() => buildStarterPlans(productionTasks as unknown as ProductionTask[]), [productionTasks]);
   const recordTaskDeduction = (task: Task) => {
     if (deductionTrigger !== "task-completion" || task.status === "completed") return;
@@ -466,6 +531,7 @@ function BakeryWorkspaceInner({
         id: r.id,
         name: r.name,
         yield: r.yield,
+        prepLeadDays: r.prepLeadDays,
         batchCost: r.batchCost,
         sellingPrice: r.sellingPrice,
         flowId: r.flowId,
@@ -477,6 +543,7 @@ function BakeryWorkspaceInner({
       id: recipe.id,
       name: recipe.name,
       yield: recipe.yield,
+      prepLeadDays: 1,
       batchCost: 0,
       sellingPrice: recipe.sellingPrice,
       flowId: "",
@@ -525,6 +592,7 @@ function BakeryWorkspaceInner({
       packagePrice: draft.packagePrice,
       minLevel: draft.minLevel,
       kind: draft.kind,
+      initialOnHand: draft.initialOnHand,
     });
     if (!result.ok) throw new Error(result.error.message);
     await domainContext.commands.load(bakeryId);
@@ -544,7 +612,7 @@ function BakeryWorkspaceInner({
         upcomingOrderCount={getUpcomingOrderCount(domainOrders)}
       />
 
-      <main className="flex-1 overflow-y-auto overscroll-contain"
+      <main className="flex-1 overflow-y-auto overscroll-contain pb-28 lg:pb-0"
         style={{ scrollbarWidth: "none" }}>
         {activeMembership && (
           <div className="lg:hidden flex items-center justify-between gap-2 border-b border-[#E5DDD3] bg-white px-4 py-2">
@@ -585,7 +653,11 @@ function BakeryWorkspaceInner({
         <WorkspaceRoutes
           fallback={location.pathname === "/" ? <Navigate replace to={workspacePath("home")} /> : undefined}
           renderRoute={({ id: screen }) => <>
-        {screen === "home"       && <LazyHomeScreen bakeryName={activeMembership?.bakeryName} snapshot={homeSnapshot} onNavigate={navigateToScreen} onAddOrder={() => setAddOrderOpen(true)} />}
+        {screen === "home"       && (onboardingStatus === "active" || onboardingOpen)
+          ? <LazyOnboardingScreen bakeryName={activeMembership?.bakeryName} progress={onboardingProgress} onNavigate={navigateToScreen} onSkip={skipOnboarding} />
+          : screen === "home"
+            ? <LazyHomeScreen bakeryName={activeMembership?.bakeryName} snapshot={homeSnapshot} onNavigate={navigateToScreen} onAddOrder={() => setAddOrderOpen(true)} onOpenPrepList={openTodayPrepList} onContinueOnboarding={onboardingStatus === "dismissed" ? openOnboarding : undefined} />
+            : null}
         {screen === "orders"     && <LazyOrdersScreen onAddOrder={() => setAddOrderOpen(true)} onTransitionOrder={transitionOrder} onMarkOrderPaid={markOrderPaid} onDeleteOrder={deleteOrder} tasks={displayedTasks} orders={domainOrders} />}
         {screen === "invoices"   && (
           <LazyInvoiceList
@@ -649,6 +721,7 @@ function BakeryWorkspaceInner({
         )}
         {screen === "storefront" && <LazyStorefrontDashboard />}
         {screen === "production" && <LazyProductionScreen flows={flows} onSaveFlow={handleSaveFlow} tasks={displayedTasks} setTasks={setProductionTasks} onTaskUpdate={updateProductionTask} starterBuilds={starterBuilds} />}
+        {screen === "prep-list" && <LazyPrepListScreen snapshot={homeSnapshot} initialDate={prepListInitialDate} />}
         {screen === "recipes"    && (
           <LazyRecipeManager
             recipes={domainRecipes}
@@ -666,6 +739,7 @@ function BakeryWorkspaceInner({
                 recipeId,
                 name: recipe.name,
                 yield: recipe.yield,
+                prepLeadDays: recipe.prepLeadDays ?? 1,
                 sellingPrice: recipe.sellingPrice,
                 flowId: recipe.flowId,
                 ingredients: recipe.ingredients,
@@ -679,6 +753,7 @@ function BakeryWorkspaceInner({
                     id: savedRecipe.id,
                     name: savedRecipe.name,
                     yield: savedRecipe.yield,
+                    prepLeadDays: savedRecipe.prepLeadDays,
                     sellingPrice: savedRecipe.sellingPrice,
                   }],
                 } : current);
@@ -696,6 +771,7 @@ function BakeryWorkspaceInner({
                 recipeId: id,
                 name: recipe.name,
                 yield: recipe.yield,
+                prepLeadDays: recipe.prepLeadDays ?? 1,
                 sellingPrice: recipe.sellingPrice,
                 flowId: recipe.flowId,
                 ingredients: recipe.ingredients,
@@ -709,6 +785,7 @@ function BakeryWorkspaceInner({
                     ...recipe,
                     name: savedRecipe.name,
                     yield: savedRecipe.yield,
+                    prepLeadDays: savedRecipe.prepLeadDays,
                     sellingPrice: savedRecipe.sellingPrice,
                   } : recipe),
                 } : current);

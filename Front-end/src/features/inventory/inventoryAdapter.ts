@@ -34,7 +34,7 @@ interface InventoryQuery<T> extends PromiseLike<QueryResult<T>> {
 
 interface InventoryClient {
   from(table: "ingredients" | "inventory_transactions"): InventoryQuery<unknown>;
-  rpc(functionName: "receive_inventory_stock" | "adjust_inventory_stock", args: Record<string, unknown>): Promise<QueryResult<unknown>>;
+  rpc(functionName: "create_inventory_item" | "receive_inventory_stock" | "adjust_inventory_stock", args: Record<string, unknown>): Promise<QueryResult<unknown>>;
 }
 
 interface InventoryInsert {
@@ -168,7 +168,9 @@ function mapInventoryRow(row: InventoryRow, bakeryId: string): DomainInventoryIt
 function mapTransactionRow(row: InventoryTransactionRow, bakeryId: string): DomainInventoryTransaction | null {
   if (row.bakery_id !== bakeryId || !row.item_id || !row.id) return null;
   const transactionType = row.transaction_type;
-  const reason: DomainInventoryTransaction["reason"] = transactionType === "purchase"
+  const reason: DomainInventoryTransaction["reason"] = transactionType === "opening_balance"
+    ? "opening-balance"
+    : transactionType === "purchase"
     ? "purchase"
     : transactionType === "production_usage"
       ? "production-usage"
@@ -184,7 +186,7 @@ function mapTransactionRow(row: InventoryTransactionRow, bakeryId: string): Doma
     itemId: row.item_id,
     quantityChange: numeric(row.quantity_change, "quantity_change"),
     reason,
-    transactionType: transactionType === "purchase" || transactionType === "manual_adjustment" || transactionType === "production_usage" || transactionType === "production_output" ? transactionType : undefined,
+    transactionType: transactionType === "purchase" || transactionType === "manual_adjustment" || transactionType === "opening_balance" || transactionType === "production_usage" || transactionType === "production_output" ? transactionType : undefined,
     baseUnit: row.base_unit ? baseUnit(row.base_unit) : undefined,
     unitCost: row.unit_cost_cents == null ? undefined : numeric(row.unit_cost_cents, "unit_cost_cents") / 100,
     totalCost: row.total_cost_cents == null ? undefined : numeric(row.total_cost_cents, "total_cost_cents") / 100,
@@ -240,30 +242,36 @@ export function createSupabaseInventoryAdapter(
       if (!input.operationId.trim()) return validation("An operation ID is required for a safe retry.", "operationId");
       if (!input.ingredientId.trim()) return validation("An inventory item ID is required.", "ingredientId");
       if (!input.name.trim()) return validation("An inventory item name is required.", "name");
+      if (input.initialOnHand !== undefined && (!Number.isFinite(input.initialOnHand) || input.initialOnHand < 0)) return validation("Initial on-hand quantity must be zero or greater.", "initialOnHand");
 
-      const { data, error } = await client.from("ingredients")
-        .insert<InventoryRow>({
-          id: input.ingredientId,
-          bakery_id: input.bakeryId,
-          name: input.name.trim(),
-          unit: input.unit as InventoryBaseUnit,
-          package_quantity: input.packageQuantity,
-          package_price: input.packagePrice,
-          min_level: input.minLevel,
-          kind: input.kind,
-        })
-        .select<InventoryRow>(INVENTORY_COLUMNS)
-        .single();
+      const { error } = await client.rpc("create_inventory_item", {
+        p_bakery_id: input.bakeryId,
+        p_item_id: input.ingredientId,
+        p_name: input.name.trim(),
+        p_unit: input.unit,
+        p_package_quantity: input.packageQuantity,
+        p_package_price: input.packagePrice,
+        p_min_level: input.minLevel,
+        p_kind: input.kind,
+        p_initial_on_hand: input.initialOnHand ?? 0,
+        p_operation_id: input.operationId,
+      });
       if (error) return failure(mapError(error, "Failed to save inventory item"));
-      if (!data) return failure({ kind: "unknown", message: "Failed to save inventory item: Supabase returned no row.", retryable: false });
 
       try {
+        const loaded = await loadInventory(input.bakeryId);
+        if (!loaded.ok) return loaded;
+        const created = loaded.data.items.find(item => item.id === input.ingredientId);
+        if (!created) return failure({ kind: "unknown", message: "Failed to save inventory item: saved item was not returned.", retryable: false });
+        const opening = (input.initialOnHand ?? 0) > 0
+          ? loaded.data.transactions.find(transaction => transaction.itemId === input.ingredientId && transaction.transactionType === "opening_balance")
+          : undefined;
         return {
           ok: true,
           data: {
             kind: "ingredient-created",
             operationId: input.operationId,
-            changes: { inventoryItems: [mapInventoryRow(data, input.bakeryId)] },
+            changes: { inventoryItems: [created], ...(opening ? { inventoryTransactions: [opening] } : {}) },
           },
         };
       } catch (cause) {

@@ -15,6 +15,10 @@ production planning and financial reporting.
   supplies.
 - Let members add an inventory item with a small form and use the same flow
   from recipe creation when a needed item does not exist.
+- Let members optionally enter an initial on-hand quantity while creating an
+  item, recorded as a non-purchase opening balance.
+- Make item creation a lightweight two-step flow with clearer progress,
+  responsive mobile layout, and more convenient stock setup feedback.
 - Let members open an existing inventory item directly from its card to edit
   its details or record stock without searching from a separate inventory
   entry flow.
@@ -63,7 +67,8 @@ reporting capabilities.
   recipe ingredient selection, shopping-list presentation, domain state
   commands, task-completion integration, and finance reporting.
 - Supabase inventory schema, migrations, generated database types, RLS, and a
-  persisted inventory adapter or RPC boundary.
+  persisted inventory adapter or RPC boundary, including atomic opening
+  balances.
 - Existing recipes, production tasks, orders, and bakery-scoped workspace state.
 - Product phases F3, F9, F11 and backend phases B3, B10, B11. The change depends
   on existing recipe, order, production-task, workspace, and authentication

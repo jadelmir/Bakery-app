@@ -69,6 +69,7 @@ describe("Supabase recipe adapter", () => {
         id: recipeId,
         name: "Sourdough",
         yield: "1 loaf",
+        prepLeadDays: 1,
         batchCost: 1.03,
         sellingPrice: 9,
         flowId: "flow-uuid-from-production-flows",
@@ -113,6 +114,7 @@ describe("Supabase recipe adapter", () => {
       p_recipe_id: recipeId,
       p_flow_id: "flow-uuid-from-production-flows",
       p_ingredients_json: [{ inventory_item_id: flourId, quantity: 500 }],
+      p_prep_lead_days: 1,
     }));
     expect(result.ok).toBe(true);
     if (result.ok) {

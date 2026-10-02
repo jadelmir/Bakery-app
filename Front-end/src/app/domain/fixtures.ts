@@ -24,6 +24,7 @@ const indexById = <T extends { readonly id: string }>(entries: readonly T[]): Re
 const recipes: readonly DomainRecipe[] = [
   {
     id: "recipe-sourdough", name: "Sourdough Loaf", yield: "1 loaf · 850g", batchCost: 3.2, sellingPrice: 14,
+    prepLeadDays: 1,
     flowId: "flow-sourdough",
     ingredients: [
       { inventoryItemId: "flour", quantity: 500, cost: 1 }, { inventoryItemId: "water", quantity: 350, cost: 0.02 },
@@ -32,6 +33,7 @@ const recipes: readonly DomainRecipe[] = [
   },
   {
     id: "recipe-focaccia", name: "Focaccia", yield: "1 tray", batchCost: 2.4, sellingPrice: 8,
+    prepLeadDays: 1,
     flowId: "flow-focaccia",
     ingredients: [
       { inventoryItemId: "flour", quantity: 1000, cost: 2 }, { inventoryItemId: "water", quantity: 500, cost: 0.02 },

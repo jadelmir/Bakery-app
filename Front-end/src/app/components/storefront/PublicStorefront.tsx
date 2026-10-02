@@ -26,6 +26,7 @@ import type {
   OnlineOrderResult,
   BakeryDomainAdapter,
 } from "../../domain/types";
+import { browserRoutePath } from "../../../lib/appUrl";
 
 export interface PublicStorefrontProps {
   slug?: string;
@@ -35,7 +36,7 @@ export interface PublicStorefrontProps {
 export function PublicStorefront({ slug: propSlug, adapter: customAdapter }: PublicStorefrontProps) {
   const targetSlug =
     propSlug ??
-    window.location.pathname.match(/^\/store\/([^/]+)$/)?.[1] ??
+    browserRoutePath().match(/^\/store\/([^/]+)$/)?.[1] ??
     "jadore-bakery";
 
   const [loading, setLoading] = useState(true);

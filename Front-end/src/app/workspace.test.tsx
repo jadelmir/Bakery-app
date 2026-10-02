@@ -30,6 +30,24 @@ describe("bakery workspace adapters and team controls", () => {
     });
   });
 
+  it("keeps onboarding markers isolated by bakery", async () => {
+    const adapter = createMockWorkspaceAdapter([
+      { id: "m-a", bakeryId: "bakery-a", bakeryName: "North Bakery", role: "owner", isDefault: true },
+      { id: "m-b", bakeryId: "bakery-b", bakeryName: "South Bakery", role: "owner", isDefault: false },
+    ]);
+
+    await adapter.updateOnboardingState("mock-owner", "bakery-a", {
+      dismissedAt: "2026-10-01T12:00:00.000Z",
+    });
+
+    await expect(adapter.getOnboardingState("mock-owner", "bakery-a")).resolves.toMatchObject({
+      dismissedAt: "2026-10-01T12:00:00.000Z",
+    });
+    await expect(adapter.getOnboardingState("mock-owner", "bakery-b")).resolves.toMatchObject({
+      dismissedAt: null,
+    });
+  });
+
   it("adds an explicit bakery without replacing existing memberships or the default", async () => {
     const adapter = createMockWorkspaceAdapter();
     const initialMemberships = await adapter.listMemberships("mock-owner");

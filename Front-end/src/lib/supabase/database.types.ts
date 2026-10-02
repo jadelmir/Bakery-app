@@ -133,6 +133,47 @@ export type Database = {
           },
         ]
       }
+      bakery_onboarding_states: {
+        Row: {
+          bakery_id: string
+          completed_at: string | null
+          created_at: string
+          dismissed_at: string | null
+          id: string
+          prep_list_viewed_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bakery_id: string
+          completed_at?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          prep_list_viewed_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bakery_id?: string
+          completed_at?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          prep_list_viewed_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bakery_onboarding_states_bakery_id_fkey"
+            columns: ["bakery_id"]
+            isOneToOne: false
+            referencedRelation: "bakeries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bakery_payment_methods: {
         Row: {
           account_details_json: Json
@@ -1223,6 +1264,7 @@ export type Database = {
           flow_id: string | null
           id: string
           name: string
+          prep_lead_days: number
           selling_price_cents: number | null
           updated_at: string
           yield: string | null
@@ -1234,6 +1276,7 @@ export type Database = {
           flow_id?: string | null
           id?: string
           name: string
+          prep_lead_days?: number
           selling_price_cents?: number | null
           updated_at?: string
           yield?: string | null
@@ -1245,6 +1288,7 @@ export type Database = {
           flow_id?: string | null
           id?: string
           name?: string
+          prep_lead_days?: number
           selling_price_cents?: number | null
           updated_at?: string
           yield?: string | null
@@ -1625,6 +1669,21 @@ export type Database = {
         Args: { invitation_token: string }
         Returns: Json
       }
+      create_inventory_item: {
+        Args: {
+          p_bakery_id: string
+          p_item_id: string
+          p_name: string
+          p_unit: string
+          p_package_quantity: number
+          p_package_price: number
+          p_min_level: number
+          p_kind: string
+          p_initial_on_hand?: number
+          p_operation_id?: string
+        }
+        Returns: Json
+      }
       adjust_inventory_stock: {
         Args: {
           p_adjustment_mode: string
@@ -1806,6 +1865,7 @@ export type Database = {
           p_flow_id?: string
           p_ingredients_json?: Json
           p_name: string
+          p_prep_lead_days?: number
           p_recipe_id: string
           p_selling_price_cents: number
           p_yield: string

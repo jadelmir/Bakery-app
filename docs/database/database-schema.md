@@ -19,7 +19,7 @@ Bakery-owned records are protected by authenticated workspace membership and Row
 - `20260730180000_starter_and_inventory_movements.sql` — starter profiles/builds, inventory transaction ledger, and task execution logs.
 - `20260816000614_persist_production_flows.sql` — bakery-scoped production flows and ordered steps, dependency constraints, RLS/grants, and atomic save/delete RPCs.
 
-Later migrations in `Front-end/supabase/migrations/` are the authoritative evidence for newer implemented schema. The recipe persistence migration adds `recipe_ingredients`, converts recipe `flow_id` to text, and exposes the bakery-scoped `save_recipe` RPC. When this document and committed migrations disagree, verify the migrations and update this reference; do not infer planned tables from old requirement documents.
+Later migrations in `Front-end/supabase/migrations/` are the authoritative evidence for newer implemented schema. The recipe persistence migration adds `recipe_ingredients`, converts recipe `flow_id` to text, and exposes the bakery-scoped `save_recipe` RPC. The prep-list migration adds the bakery-scoped `recipes.prep_lead_days` setting and includes it in the atomic recipe save boundary. Prep List rows remain a derived read model over orders, recipe lines, and inventory; no prep-list table or inventory mutation is introduced. When this document and committed migrations disagree, verify the migrations and update this reference; do not infer planned tables from old requirement documents.
 
 ## Implemented domain areas
 
@@ -35,6 +35,7 @@ Current migrations cover workspace identity/membership, ingredients and inventor
 - Production flow saves replace the complete ordered step set through an invoker RPC, preserving same-flow dependency integrity atomically.
 - Production flow tables and RPCs require authenticated bakery membership; anonymous access and cross-bakery access are denied by grants and RLS.
 - Recipe saves replace the complete ingredient-line set through the invoker `save_recipe` RPC, calculating authoritative batch cost from active bakery inventory rows.
+- Recipe saves persist a non-negative `prep_lead_days` value with a default of one day; Prep List dates are derived from fulfillment dates and do not reserve or deduct inventory.
 - Recipe ingredient lines and the save RPC require authenticated bakery membership; anonymous access and cross-bakery access are denied by grants and RLS.
 
 For exact tables, columns, policies, functions, constraints, and their current order, inspect the committed migrations and generated Supabase types. OpenSpec is authoritative for proposed schema changes that are not yet implemented.

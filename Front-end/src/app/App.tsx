@@ -25,6 +25,7 @@ import type { ProductionTask } from "./production";
 import type { InventoryItem, Task } from "./types";
 import { createManualOrderService } from "../lib/supabase/manualOrderAdapter";
 import { createSupabaseInvoiceAdapter } from "../features/invoicing/invoiceAdapter";
+import { appPath, browserRoutePath } from "../lib/appUrl";
 import { AlertTriangle, Plus, ShoppingBag, PackagePlus } from "lucide-react";
 
 const LazyPublicInvoiceView = lazy(() =>
@@ -351,7 +352,8 @@ export default function App({
   authAdapter?: AuthAdapter;
   workspaceAdapter?: WorkspaceAdapter;
 }) {
-  const publicTokenMatch = window.location.pathname.match(/^\/invoice\/([^/]+)$/);
+  const routePath = browserRoutePath();
+  const publicTokenMatch = routePath.match(/^\/invoice\/([^/]+)$/);
   if (publicTokenMatch) {
     const publicToken = publicTokenMatch[1];
     return (
@@ -372,7 +374,7 @@ export default function App({
       </Suspense>
     );
   }
-  const publicStorefrontMatch = window.location.pathname.match(/^\/store\/([^/]+)$/);
+  const publicStorefrontMatch = routePath.match(/^\/store\/([^/]+)$/);
   if (publicStorefrontMatch) {
     const slug = publicStorefrontMatch[1];
     return (
@@ -383,7 +385,7 @@ export default function App({
   }
 
   const useBrowserMock = import.meta.env.VITE_USE_MOCK_BACKEND === "true";
-  const isRecoveryPath = window.location.pathname === "/auth/reset-password";
+  const isRecoveryPath = routePath === "/auth/reset-password";
   const browserMockAuthAdapter = useMemo(() => createMockAuthAdapter(20), []);
   const activeAuthAdapter = authAdapter ?? (useBrowserMock ? browserMockAuthAdapter : supabaseAuthAdapter);
   const activeWorkspaceAdapter = useMemo(
@@ -498,7 +500,7 @@ export default function App({
   }, [session, activeWorkspaceAdapter, isRecoveryPath]);
 
   const navigateToLogin = (notice = "") => {
-    window.history.replaceState({}, "", "/auth/login");
+    window.history.replaceState({}, "", appPath("/auth/login"));
     setRecoveryState("idle");
     setRecoveryNotice(notice);
     setSession(null);

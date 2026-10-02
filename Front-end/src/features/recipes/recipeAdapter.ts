@@ -12,7 +12,7 @@ import type {
   UpdateRecipeInput,
 } from "../../app/domain/types";
 
-const RECIPE_COLUMNS = "id,bakery_id,name,yield,batch_cost_cents,selling_price_cents,flow_id,created_at,updated_at";
+const RECIPE_COLUMNS = "id,bakery_id,name,yield,batch_cost_cents,selling_price_cents,flow_id,prep_lead_days,created_at,updated_at";
 const RECIPE_INGREDIENT_COLUMNS = "recipe_id,inventory_item_id,quantity,created_at,updated_at";
 
 type QueryError = { code?: string; message: string; status?: number };
@@ -26,6 +26,7 @@ export interface RecipeRow {
   batch_cost_cents: number | string | null;
   selling_price_cents: number | string | null;
   flow_id: string | null;
+  prep_lead_days: number | string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -148,6 +149,7 @@ function mapRecipeRow(
     id,
     name,
     yield: row.yield?.trim() || "1 batch",
+    prepLeadDays: Math.max(0, Math.floor(numberValue(row.prep_lead_days ?? 1, "prep_lead_days"))),
     batchCost,
     sellingPrice,
     flowId: row.flow_id,
@@ -252,12 +254,14 @@ export function createSupabaseRecipeAdapter(
 
   const saveRecipe = async (
     input: CreateRecipeInput | UpdateRecipeInput,
-    current: { name: string; yield: string; sellingPrice: number; flowId: string | null; ingredients: readonly RecipeIngredientDraft[] },
+    current: { name: string; yield: string; prepLeadDays?: number; sellingPrice: number; flowId: string | null; ingredients: readonly RecipeIngredientDraft[] },
   ): Promise<AdapterResult<RecipeResult>> => {
     if (!input.operationId.trim()) return validation("An operation ID is required for a safe retry.", "operationId");
     if (!input.bakeryId.trim()) return validation("A bakery ID is required.", "bakeryId");
     if (!isUuid(input.recipeId)) return validation("A persisted recipe ID must be a UUID.", "recipeId");
     if (!Number.isFinite(current.sellingPrice) || current.sellingPrice < 0) return validation("Selling price cannot be negative.", "sellingPrice");
+    const prepLeadDays = current.prepLeadDays ?? 1;
+    if (!Number.isInteger(prepLeadDays) || prepLeadDays < 0) return validation("Preparation lead time must be a non-negative whole number.", "prepLeadDays");
 
     const { data, error } = await client.rpc("save_recipe", {
       p_bakery_id: input.bakeryId,
@@ -267,6 +271,7 @@ export function createSupabaseRecipeAdapter(
       p_selling_price_cents: Math.round(current.sellingPrice * 100),
       p_flow_id: current.flowId,
       p_ingredients_json: ingredientsJson(current.ingredients),
+      p_prep_lead_days: prepLeadDays,
     });
     if (error) return failure(mapError(error, "Failed to save recipe"));
 
@@ -296,6 +301,7 @@ export function createSupabaseRecipeAdapter(
       return saveRecipe(input, {
         name: input.name,
         yield: input.yield,
+        prepLeadDays: input.prepLeadDays,
         sellingPrice: input.sellingPrice,
         flowId: input.flowId,
         ingredients: input.ingredients,
@@ -309,6 +315,7 @@ export function createSupabaseRecipeAdapter(
       return saveRecipe(input, {
         name: input.name,
         yield: input.yield,
+        prepLeadDays: input.prepLeadDays,
         sellingPrice: input.sellingPrice,
         flowId: input.flowId,
         ingredients: input.ingredients,

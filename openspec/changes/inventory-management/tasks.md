@@ -32,8 +32,8 @@
   manual add-item flow.
 - [x] 3.2 Add a shared create-inventory-item flow for name, category, base unit,
   package quantity, package price, and optional minimum level. Calculate the
-  default base-unit cost, start new items at zero on hand, and make the flow
-  available from both Inventory and recipe creation.
+  default base-unit cost and make the flow available from both Inventory and
+  recipe creation.
 - [x] 3.3 Make new recipe ingredient lists empty, populate item pickers from
   active bakery inventory, group options by Ingredients and Retail supplies,
   and select a newly created item after inline creation. Remove all hardcoded
@@ -54,6 +54,9 @@
 - [x] 3.8 Add a confirmed item archive action from the item editor, hide
   archived items from active inventory, preserve ledger history, and cover the
   flow with focused UI tests.
+- [ ] 3.9 Add a responsive two-step item creation flow with an optional initial
+  base-unit quantity, atomic opening-balance persistence, retained values when
+  navigating back, progress feedback, and focused local/Supabase/UI tests.
 
 ## 4. Production and finance integration
 

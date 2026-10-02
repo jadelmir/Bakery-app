@@ -10,7 +10,7 @@ export type WorkspacePrimaryRouteId =
   | "finances"
   | "settings";
 
-export type WorkspaceUtilityRouteId = "payment-settings" | "account" | "more";
+export type WorkspaceUtilityRouteId = "payment-settings" | "account" | "more" | "prep-list";
 
 export type WorkspaceRouteId = WorkspacePrimaryRouteId | WorkspaceUtilityRouteId;
 export type WorkspacePath = `/${string}`;
@@ -40,6 +40,7 @@ export const workspaceRouteRegistry: readonly WorkspaceRoute[] = [
   { id: "settings", label: "Settings", path: "/settings", aliases: ["/app/settings"], kind: "primary" },
   { id: "payment-settings", label: "Payment Settings", path: "/invoices/payment-settings", aliases: ["/app/payment-settings"], kind: "utility" },
   { id: "account", label: "Account & Profile", path: "/settings/account", aliases: ["/app/account"], kind: "utility" },
+  { id: "prep-list", label: "Prep List", path: "/prep-list", aliases: ["/app/prep-list"], kind: "utility" },
   { id: "more", label: "More", path: "/more", aliases: ["/app/more"], kind: "utility" },
 ] as const;
 

@@ -171,11 +171,16 @@ describe("session-local bakery domain adapter", () => {
 
     const created = await adapter.createIngredient!({
       bakeryId: earls, operationId: "create-flour", ingredientId: "ing-flour-organic",
-      name: "Organic Flour", unit: "g", packageQuantity: pkgQty, packagePrice: pkgPrice, minLevel: 1000, kind: "ingredient",
+      name: "Organic Flour", unit: "g", packageQuantity: pkgQty, packagePrice: pkgPrice, minLevel: 1000, kind: "ingredient", initialOnHand: 5000,
     });
     expect(created).toMatchObject({ ok: true, data: { kind: "ingredient-created" } });
     const createdSnapshot = await adapter.loadSnapshot({ bakeryId: earls });
-    expect(createdSnapshot).toMatchObject({ ok: true, data: { inventoryById: { "ing-flour-organic": { onHand: 0, packageQuantity: pkgQty, packagePrice: pkgPrice, unitCost: costPerUnit } } } });
+    expect(createdSnapshot).toMatchObject({ ok: true, data: { inventoryById: { "ing-flour-organic": { onHand: 5000, packageQuantity: pkgQty, packagePrice: pkgPrice, unitCost: costPerUnit } } } });
+    if (createdSnapshot.ok) {
+      expect(Object.values(createdSnapshot.data.inventoryTransactionsById)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ itemId: "ing-flour-organic", quantityChange: 5000, reason: "opening-balance", transactionType: "opening_balance" }),
+      ]));
+    }
 
     const moved = await adapter.recordMovement!({
       bakeryId: earls, operationId: "restock-flour", movementId: "mov-001",

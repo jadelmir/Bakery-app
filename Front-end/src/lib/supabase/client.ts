@@ -6,6 +6,7 @@ import {
   type SupabaseClientOptions,
 } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
+import { appUrl } from "../appUrl";
 
 export interface SupabasePublicConfig {
   url: string;
@@ -16,8 +17,9 @@ export const PASSWORD_RECOVERY_PATH = "/auth/reset-password";
 
 export function getPasswordRecoveryRedirect(
   location: Pick<Location, "origin"> = window.location,
+  basePath = import.meta.env.BASE_URL,
 ): string {
-  return new URL(PASSWORD_RECOVERY_PATH, location.origin).toString();
+  return appUrl(PASSWORD_RECOVERY_PATH, location.origin, basePath);
 }
 
 export function readSupabasePublicConfig(

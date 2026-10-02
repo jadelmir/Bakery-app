@@ -30,6 +30,16 @@ export interface BakeryInvitation {
 
 export interface WorkspaceAdapter {
   listMemberships(userId: string): Promise<BakeryMembership[]>;
+  getOnboardingState(userId: string, bakeryId: string): Promise<{
+    dismissedAt: string | null;
+    completedAt: string | null;
+    prepListViewedAt: string | null;
+  }>;
+  updateOnboardingState(userId: string, bakeryId: string, patch: {
+    dismissedAt?: string | null;
+    completedAt?: string | null;
+    prepListViewedAt?: string | null;
+  }): Promise<void>;
   createDefaultBakery(name: string): Promise<string>;
   createAdditionalBakery(name: string): Promise<string>;
   setDefaultBakery(bakeryId: string): Promise<void>;
@@ -89,6 +99,31 @@ export function createSupabaseWorkspaceAdapter(
         role: row.role as BakeryRole,
         isDefault: profile?.default_bakery_id === row.bakery_id,
       }));
+    },
+    async getOnboardingState(userId, bakeryId) {
+      const { data, error } = await client
+        .from("bakery_onboarding_states")
+        .select("dismissed_at,completed_at,prep_list_viewed_at")
+        .eq("user_id", userId)
+        .eq("bakery_id", bakeryId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return {
+        dismissedAt: data?.dismissed_at ?? null,
+        completedAt: data?.completed_at ?? null,
+        prepListViewedAt: data?.prep_list_viewed_at ?? null,
+      };
+    },
+    async updateOnboardingState(userId, bakeryId, patch) {
+      const current = await this.getOnboardingState(userId, bakeryId);
+      const { error } = await client.from("bakery_onboarding_states").upsert({
+        user_id: userId,
+        bakery_id: bakeryId,
+        dismissed_at: patch.dismissedAt ?? current.dismissedAt,
+        completed_at: patch.completedAt ?? current.completedAt,
+        prep_list_viewed_at: patch.prepListViewedAt ?? current.prepListViewedAt,
+      }, { onConflict: "user_id,bakery_id" });
+      if (error) throw new Error(error.message);
     },
     async createDefaultBakery(name) {
       const { data, error } = await client.rpc("create_default_bakery", {
@@ -233,6 +268,13 @@ export function createMockWorkspaceAdapter(
   }],
 ): WorkspaceAdapter {
   let memberships = [...initialMemberships];
+  const onboardingStates = new Map<string, { dismissedAt: string | null; completedAt: string | null; prepListViewedAt: string | null }>(
+    initialMemberships.map(membership => [`mock-owner:${membership.bakeryId}`, {
+      dismissedAt: null,
+      completedAt: new Date(0).toISOString(),
+      prepListViewedAt: new Date(0).toISOString(),
+    }]),
+  );
   let nextBakeryNumber = 1;
   const team: TeamMember[] = [{
     id: "membership-earls",
@@ -250,6 +292,20 @@ export function createMockWorkspaceAdapter(
   const invitations: BakeryInvitation[] = [];
   return {
     listMemberships: async () => memberships.map(item => ({ ...item })),
+    getOnboardingState: async (userId, bakeryId) => ({
+      dismissedAt: onboardingStates.get(`${userId}:${bakeryId}`)?.dismissedAt ?? null,
+      completedAt: onboardingStates.get(`${userId}:${bakeryId}`)?.completedAt ?? null,
+      prepListViewedAt: onboardingStates.get(`${userId}:${bakeryId}`)?.prepListViewedAt ?? null,
+    }),
+    updateOnboardingState: async (userId, bakeryId, patch) => {
+      const key = `${userId}:${bakeryId}`;
+      const current = onboardingStates.get(key) ?? { dismissedAt: null, completedAt: null, prepListViewedAt: null };
+      onboardingStates.set(key, {
+        dismissedAt: patch.dismissedAt === undefined ? current.dismissedAt : patch.dismissedAt,
+        completedAt: patch.completedAt === undefined ? current.completedAt : patch.completedAt,
+        prepListViewedAt: patch.prepListViewedAt === undefined ? current.prepListViewedAt : patch.prepListViewedAt,
+      });
+    },
     createDefaultBakery: async name => {
       const existingMembership = memberships.find(item => item.isDefault) ?? memberships[0];
       if (existingMembership) return existingMembership.bakeryId;
@@ -263,6 +319,7 @@ export function createMockWorkspaceAdapter(
         isDefault: true,
       };
       memberships = [newMembership];
+      onboardingStates.set(`mock-owner:${bakeryId}`, { dismissedAt: null, completedAt: null, prepListViewedAt: null });
       return bakeryId;
     },
     createAdditionalBakery: async name => {
@@ -275,6 +332,7 @@ export function createMockWorkspaceAdapter(
         isDefault: false,
       };
       memberships = memberships.concat(newMembership);
+      onboardingStates.set(`mock-owner:${bakeryId}`, { dismissedAt: null, completedAt: null, prepListViewedAt: null });
       return bakeryId;
     },
     setDefaultBakery: async bakeryId => {
@@ -328,6 +386,8 @@ export function createMockWorkspaceAdapter(
 
 export const supabaseWorkspaceAdapter: WorkspaceAdapter = {
   listMemberships: userId => createSupabaseWorkspaceAdapter().listMemberships(userId),
+  getOnboardingState: (userId, bakeryId) => createSupabaseWorkspaceAdapter().getOnboardingState(userId, bakeryId),
+  updateOnboardingState: (userId, bakeryId, patch) => createSupabaseWorkspaceAdapter().updateOnboardingState(userId, bakeryId, patch),
   createDefaultBakery: name => createSupabaseWorkspaceAdapter().createDefaultBakery(name),
   createAdditionalBakery: name => createSupabaseWorkspaceAdapter().createAdditionalBakery(name),
   setDefaultBakery: bakeryId => createSupabaseWorkspaceAdapter().setDefaultBakery(bakeryId),

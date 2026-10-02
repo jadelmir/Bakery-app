@@ -1,6 +1,6 @@
 import {
   FileText, Store, Package, Users, DollarSign, CreditCard, User, Settings,
-  ChevronRight, LogOut, BookOpen,
+  ChevronRight, LogOut, BookOpen, ClipboardList,
 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useGuardedExit, useGuardedNavigate } from "../navigation/dirtyFormGuard";
@@ -37,6 +37,7 @@ export function MoreScreen({
   const unpaidInfo = snapshot ? selectUnpaidCustomerSummary(snapshot) : { unpaidTotal: 103, summary: "" };
   const items = [
     { Icon: BookOpen,   label: "Recipes",          routeId: "recipes" as WorkspaceRouteId,          sub: "Manage recipes & batch costing" },
+    { Icon: ClipboardList, label: "Prep List",     routeId: "prep-list" as WorkspaceRouteId,       sub: "Prepare ingredients & packaging by date" },
     { Icon: FileText,   label: "Invoices",         routeId: "invoices" as WorkspaceRouteId,         sub: "Manage customer billing & payments" },
     { Icon: Store,      label: "Online Store",     routeId: "storefront" as WorkspaceRouteId,       sub: "Manage public store & products" },
     { Icon: Package,    label: "Inventory",        routeId: "inventory" as WorkspaceRouteId,        sub: `${lowStockCount} item${lowStockCount === 1 ? "" : "s"} need attention` },

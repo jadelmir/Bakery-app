@@ -1,0 +1,48 @@
+name: Hosted Staging E2E
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: hosted-staging-e2e-development
+  cancel-in-progress: false
+
+jobs:
+  hosted-staging-e2e:
+    name: Hosted staging browser journeys
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install frontend dependencies
+        working-directory: Front-end
+        run: npm install
+
+      - name: Install Playwright Chromium
+        working-directory: Front-end
+        run: npx playwright install --with-deps chromium
+
+      - name: Run hosted staging E2E suite
+        working-directory: Front-end
+        run: npm run test:e2e:staging
+        env:
+          E2E_STAGING_EMAIL: ${{ secrets.STAGING_E2E_EMAIL }}
+          E2E_STAGING_PASSWORD: ${{ secrets.STAGING_E2E_PASSWORD }}
+          E2E_STAGING_ACTIVE_BAKERY_NAME: ${{ vars.STAGING_E2E_ACTIVE_BAKERY_NAME }}
+
+      - name: Upload hosted Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-staging-playwright-report
+          path: Front-end/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7

@@ -32,12 +32,13 @@
 - Strict environment separation prevents dev, staging, and production credentials from crossing environment boundaries.
 
 ## 6. Frontend Module Boundaries
-- `screens/`: Top-level page views (HomeScreen, OrdersScreen, ProductionScreen, InventoryScreen, FinancesScreen, SettingsScreen, MoreScreen).
+- `screens/`: Top-level page views (HomeScreen, OrdersScreen, ProductionScreen, PrepListScreen, InventoryScreen, FinancesScreen, SettingsScreen, MoreScreen).
 - `navigation/`: Navigation components including Sidebar, BottomNav, FAB, and dirty form guard context.
 - `components/`: Feature-specific UI components (orders/, production/, inventory/, recipes/, customers/, invoicing/, storefront/, shared/, ui/).
 - `domain/`: Abstract data adapter contracts, local memory adapters, and Supabase client Data API integrations.
 - `state/`: React Context providers, state selectors, action reducers, and domain hooks.
 - `planning.ts`: Core calculations for ingredient requirements, sourdough starter builds, and inventory deductions.
+- `prepList.ts`: Derived prep-date scheduling, product/material aggregation, availability separation, source traceability, and calculation warnings for Prep List.
 - `production.ts`: Production flow definitions, task status enumerations, and step timing helpers.
 - `reporting.ts`: Financial calculation logic aggregating gross sales, manual expenses, and cost metrics.
 

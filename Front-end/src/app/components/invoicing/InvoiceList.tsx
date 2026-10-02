@@ -29,6 +29,7 @@ import type {
 import { formatCents, formatDate, printInvoicePdf, type InvoicePdfData } from "../../../lib/pdf/invoicePdf";
 import { InvoiceEditor, type OrderSummary } from "./InvoiceEditor";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
+import { appUrl } from "../../../lib/appUrl";
 
 export interface InvoiceListProps {
   readonly invoices?: readonly DomainInvoice[];
@@ -154,7 +155,7 @@ export function InvoiceList({
   };
 
   const handleSendEmail = (invoice: DomainInvoice) => {
-    const publicUrl = `${window.location.origin}/invoice/${invoice.publicToken}`;
+    const publicUrl = appUrl(`/invoice/${invoice.publicToken}`);
     showToast(`Invoice email sent to ${invoice.customerEmail || invoice.customerName}! (Link: ${publicUrl})`);
   };
 

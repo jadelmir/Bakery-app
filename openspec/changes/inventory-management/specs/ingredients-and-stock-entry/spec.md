@@ -33,6 +33,42 @@ add-item category.
 - **THEN** the item stores a default unit cost of `$0.0017` per gram while
   on-hand stock remains zero
 
+### Requirement: New items support an opening on-hand balance
+
+The system SHALL allow a bakery member to provide an optional non-negative
+initial on-hand quantity in the item's canonical base unit while creating an
+ingredient or retail supply. The default SHALL be zero. A positive value SHALL
+create exactly one idempotent `opening_balance` ledger event, SHALL update the
+item's cached on-hand balance atomically, and SHALL NOT count as purchase spend
+or consumed product cost.
+
+#### Scenario: Creating an item with opening stock
+
+- **WHEN** a member creates flour with base unit `g` and initial quantity
+  `5000`
+- **THEN** the item appears with `5000 g` on hand and one opening-balance event
+  in its inventory history
+- **AND** Finance does not include the opening balance as a purchase
+
+#### Scenario: Creating an item with the default opening stock
+
+- **WHEN** a member creates a retail supply without entering an initial
+  quantity
+- **THEN** the item appears with zero on hand and no opening-balance event is
+  required
+
+### Requirement: Inventory item creation is progressive and responsive
+
+The system SHALL present item creation as two clearly labeled steps: item
+identity and stock/pricing. The member SHALL be able to move back without
+losing entered values, and the primary action SHALL remain usable on narrow
+screens.
+
+#### Scenario: Moving back during item creation
+
+- **WHEN** a member advances to stock/pricing and returns to item identity
+- **THEN** previously entered values remain available for editing
+
 ### Requirement: Existing inventory items are editable from their item view
 
 The system SHALL allow a bakery member to open an existing ingredient or

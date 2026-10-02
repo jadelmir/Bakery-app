@@ -43,6 +43,32 @@ Only browser-safe configuration is supplied to Vite. Database passwords, Supabas
 
 The workflow publishes `Front-end/dist` with the official GitHub Pages Actions and records the deployment URL through the `github-pages` environment.
 
+## Hosted staging E2E
+
+`Front-end/playwright.staging.config.ts` targets the already deployed staging frontend. It deliberately has no `webServer`, mock-backend flag, or service-role cleanup path. Run it from `Front-end` with:
+
+```text
+npm run test:e2e:staging
+```
+
+The runner requires `E2E_STAGING_EMAIL` and `E2E_STAGING_PASSWORD` for the currently authorized staging identity. `E2E_BASE_URL` (or the compatibility alias `E2E_STAGING_BASE_URL`) may override the default hosted URL, and `E2E_STAGING_ACTIVE_BAKERY_NAME` defaults to `J'adore`. The suite is read-only and uses the active bakery selected by that identity; it must not create a parallel tenant or use production data.
+
+The manually dispatched `.github/workflows/hosted-staging-e2e.yml` supplies those values from the `development` GitHub Environment and runs desktop and mobile projects sequentially. Reports, traces, screenshots, and videos are uploaded only when the run fails. Invitation-mailbox and privileged cleanup checks remain separate prerequisites and are not silently treated as passing.
+
+## Hosted journey readiness matrix
+
+This is the current acceptance boundary for the existing staging identity and active J’adore bakery:
+
+| Journey | Hosted evidence required | Current state |
+| --- | --- | --- |
+| Authentication, bakery selection, workspace navigation | Signed-in browser session plus hosted Playwright route sweep | Confirmed manually; automation is available when staging credentials are configured |
+| Orders, customers, recipes, inventory, production, finances | Read-only route render plus run-scoped create/update/delete with cleanup | Local coverage exists; hosted write coverage remains gated on explicit staging credentials and cleanup evidence |
+| Storefront and public invoice links | Generated link includes `/Bakery-app/` and resolves in a fresh browser context | Base-path fix is implemented locally; hosted verification waits for the next Pages deployment |
+| Password recovery | Recovery redirect preserves `/Bakery-app/auth/reset-password` | Base-path fix and unit coverage are complete; hosted mail-link verification remains pending |
+| Invitation delivery and acceptance | Synthetic mailbox delivery, acceptance, and exactly one membership reload | Delivery to `jad.em@outlook.com` passed; mailbox-link acceptance and membership reload remain pending |
+
+Existing staging data is treated as read-only unless a run-scoped record and a reversible cleanup path are available. No service-role secret belongs in the frontend repository or Pages environment.
+
 ## Staging invitation readiness
 
 The deployed application base URL is `https://jadelmir.github.io/Bakery-app/`. The Supabase Edge Function's server-only `APP_URL` must use that full URL, including `/Bakery-app/`; the browser sends only the origin, so the function validates `https://jadelmir.github.io` and builds the delivered callback under the configured path.
@@ -56,6 +82,21 @@ Before claiming invitation readiness for staging, record evidence for all of the
 5. The synthetic invite is accepted by the verified invitee and a membership reload shows exactly one membership for the designated bakery.
 
 Local Vitest/Mailpit success is supporting evidence only; it does not replace this hosted check. If delivery initiation fails, the UI must report failure and the pending invitation must be revoked or otherwise unusable.
+
+## Custom invitation email provider
+
+The dedicated bakery invitation message is sent by the `send-bakery-invite` Edge Function through the configured provider. Staging requires these server-only Supabase secrets:
+
+- `RESEND_API_KEY`: provider API credential; never expose it as a `VITE_*` value or put it in GitHub Pages.
+- `INVITATION_FROM_EMAIL`: verified sender address, for example `Bakery App <invites@verified-staging-domain.example>`.
+
+The sender address currently selected for staging is `Bakery App <elmirjad@gmail.com>`. It is stored under the replaceable `INVITATION_FROM_EMAIL` setting so it can later be changed to a verified bakery or app domain without changing application code. The address must be verified with the provider before hosted delivery is tested. Configure the values in the staging Supabase project through its secret manager or an approved secret-aware deployment step. The Pages workflow must receive neither value.
+
+The staging Supabase deployment workflow reads these values from the GitHub `staging` Environment secrets and fails before deployment if either is missing. Add `RESEND_API_KEY` and `INVITATION_FROM_EMAIL` to that Environment; do not place their values in workflow files.
+
+Local Edge Function verification may set `MAILPIT_URL` to the local Mailpit HTTP endpoint instead of configuring a hosted provider. Mailpit is test-only and does not replace staging sender verification.
+
+Hosted mailbox retrieval is a separate CI-only prerequisite. Mailbox credentials or API tokens must remain in the GitHub Environment/secret store, and the browser must receive only the generated callback link needed for the run. Full message bodies, callback tokens, and provider credentials must not be written to logs or uploaded artifacts.
 
 ## SPA deep-link behavior
 

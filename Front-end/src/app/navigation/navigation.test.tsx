@@ -31,6 +31,7 @@ describe("workspace route registry", () => {
     ]);
     expect(workspacePath("payment-settings")).toBe("/invoices/payment-settings");
     expect(workspacePath("account")).toBe("/settings/account");
+    expect(workspacePath("prep-list")).toBe("/prep-list");
     expect(workspacePath("more")).toBe("/more");
   });
 

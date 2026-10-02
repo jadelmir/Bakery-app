@@ -86,15 +86,20 @@ under Ingredients and Retail supplies. When the required item does not exist,
 the editor opens the shared create-inventory-item form and selects the newly
 created item when the form succeeds.
 
-The shared create form asks for item name, category, base unit, typical package
-quantity, package price, and an optional minimum level. It calculates a
-default base-unit cost; for example, 10,000 g at $17 produces $0.0017/g.
-Initial on-hand quantity starts at zero and receiving stock remains a separate
-action. After a successful save, the create form closes. Existing inventory
-cards open a focused item modal where members can edit those item details and
-switch directly to receiving, physical-count, or relative-adjustment actions
-for the selected item. A receipt may override the default price and updates
-weighted-average cost.
+The shared create form uses two lightweight steps. Step one asks for item name,
+category, and base unit. Step two asks for initial on-hand quantity, typical
+package quantity, package price, and optional minimum level. Initial quantity
+is entered in the canonical base unit and defaults to zero. A positive initial
+quantity creates one idempotent `opening_balance` ledger event with
+`affects_financials = false`; it is not a purchase and does not appear in
+purchase-spend reporting. The form calculates a default base-unit cost; for
+example, 10,000 g at $17 produces $0.0017/g. The step indicator, back/continue
+actions, sticky save action on narrow screens, and inline summary keep the
+flow easy to scan without adding a review step. After a successful save, the
+create form closes. Existing inventory cards open a focused item modal where
+members can edit those item details and switch directly to receiving,
+physical-count, or relative-adjustment actions for the selected item. A
+receipt may override the default price and updates weighted-average cost.
 
 Removing an item from the active inventory uses a confirmed soft archive. The
 item is hidden from active inventory lists and pickers, while its append-only
@@ -172,6 +177,15 @@ Inventory item deletion is an archive operation rather than a physical row
 delete. This preserves foreign-key references from ledger history and recipes,
 and keeps historical costs and stock events auditable. The UI requires an
 explicit confirmation before archiving the item.
+
+### 10. Treat initial stock as an opening balance
+
+Creating an item and recording its initial quantity is one logical mutation.
+The persisted path uses an atomic database boundary so the item cannot appear
+with a balance that has no corresponding ledger event, or vice versa. The
+local adapter applies the same result and retry semantics. Opening balances are
+excluded from purchase cash spend and consumed product cost; later receipts
+and production usage retain their existing financial behavior.
 
 ## Risks / Trade-offs
 

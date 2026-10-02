@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useId } from "react";
-import { X, Plus, Trash2, BookOpen, DollarSign, Scale, Layers } from "lucide-react";
+import { X, Plus, Trash2, BookOpen, DollarSign, Layers } from "lucide-react";
 import {
   InventoryItemCreateDialog,
   type InventoryItemDraft,
@@ -16,6 +16,7 @@ export interface RecipeEditorDialogProps {
     id?: string;
     name: string;
     yield: string;
+    prepLeadDays?: number;
     sellingPrice: number;
     batchCost?: number;
     flowId?: string | null;
@@ -39,6 +40,7 @@ export interface RecipeEditorDialogProps {
     id?: string;
     name: string;
     yield: string;
+    prepLeadDays: number;
     sellingPrice: number;
     batchCost: number;
     flowId: string | null;
@@ -70,6 +72,8 @@ const DEFAULT_FLOWS = [
   { id: "flow-focaccia", name: "Standard Focaccia" },
 ];
 
+const CREATE_ITEM_OPTION = "__create_inventory_item__";
+
 export function RecipeEditorDialog({
   recipe,
   inventoryItems = [],
@@ -80,11 +84,16 @@ export function RecipeEditorDialog({
 }: RecipeEditorDialogProps) {
   const titleId = useId();
   const [createdItems, setCreatedItems] = useState<NonNullable<RecipeEditorDialogProps["inventoryItems"]>>([]);
-  const availableItems = useMemo(() => [...inventoryItems, ...createdItems], [inventoryItems, createdItems]);
+  const availableItems = useMemo(() => {
+    const uniqueItems = new Map<string, NonNullable<RecipeEditorDialogProps["inventoryItems"]>[number]>();
+    createdItems.forEach((item) => uniqueItems.set(item.id, item));
+    inventoryItems.forEach((item) => uniqueItems.set(item.id, item));
+    return [...uniqueItems.values()];
+  }, [inventoryItems, createdItems]);
   const availableFlows = productionFlows.length > 0 ? productionFlows : DEFAULT_FLOWS;
 
   const [name, setName] = useState(recipe?.name ?? "");
-  const [recipeYield, setRecipeYield] = useState(recipe?.yield ?? "1 batch");
+  const [prepLeadDays, setPrepLeadDays] = useState(recipe?.prepLeadDays ?? 1);
   const [sellingPrice, setSellingPrice] = useState<number | "">(recipe?.sellingPrice ?? 12.0);
   const [flowId, setFlowId] = useState<string | null>(recipe?.flowId ?? null);
   const [createItemOpen, setCreateItemOpen] = useState(false);
@@ -174,6 +183,11 @@ export function RecipeEditorDialog({
     field: "inventoryItemId" | "quantity",
     value: string | number
   ) => {
+    if (field === "inventoryItemId" && value === CREATE_ITEM_OPTION) {
+      setCreateItemForRow(index);
+      setCreateItemOpen(true);
+      return;
+    }
     setIngredients(
       ingredients.map((ing, i) => {
         if (i !== index) return ing;
@@ -205,7 +219,8 @@ export function RecipeEditorDialog({
       await onSave({
         id: recipe?.id,
         name: name.trim(),
-        yield: recipeYield.trim() || "1 batch",
+        yield: recipe?.yield ?? "1 batch",
+        prepLeadDays,
         sellingPrice: numericPrice,
         batchCost: Number(totalBatchCost.toFixed(2)),
         flowId,
@@ -253,7 +268,7 @@ export function RecipeEditorDialog({
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pt-4 space-y-5">
           {/* Main Info Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label htmlFor="recipe-name-input" className="block text-xs font-bold text-[#6F655E] uppercase mb-1">
                 Recipe Name *
@@ -269,22 +284,6 @@ export function RecipeEditorDialog({
               />
             </div>
 
-            <div>
-              <label htmlFor="recipe-yield-input" className="block text-xs font-bold text-[#6F655E] uppercase mb-1">
-                Batch Yield
-              </label>
-              <div className="relative">
-                <Scale className="absolute left-3 top-2.5 text-[#988D84]" size={16} />
-                <input
-                  id="recipe-yield-input"
-                  type="text"
-                  value={recipeYield}
-                  onChange={(e) => setRecipeYield(e.target.value)}
-                  placeholder="e.g. 1 loaf · 850g or 12 rolls"
-                  className="w-full h-10 pl-9 pr-3 border border-[#E5DDD3] rounded-xl text-sm focus:outline-none focus:border-[#7A3E24] text-[#2F2925]"
-                />
-              </div>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -308,6 +307,23 @@ export function RecipeEditorDialog({
                   className="w-full h-10 pl-9 pr-3 border border-[#E5DDD3] rounded-xl text-sm focus:outline-none focus:border-[#7A3E24] text-[#2F2925]"
                 />
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="recipe-prep-lead-days" className="block text-xs font-bold text-[#6F655E] uppercase mb-1">
+                Prep Lead Time (Days Before Pickup)
+              </label>
+              <input
+                id="recipe-prep-lead-days"
+                required
+                type="number"
+                min="0"
+                step="1"
+                value={prepLeadDays}
+                onChange={(event) => setPrepLeadDays(Math.max(0, Math.floor(Number(event.target.value) || 0)))}
+                className="w-full h-10 px-3 border border-[#E5DDD3] rounded-xl text-sm focus:outline-none focus:border-[#7A3E24] text-[#2F2925]"
+              />
+              <p className="mt-1 text-[11px] text-[#988D84]">0 = same day; 1 = default; 2 = two days before.</p>
             </div>
 
             <div>
@@ -391,6 +407,9 @@ export function RecipeEditorDialog({
                             </optgroup>
                           );
                         })}
+                        {onCreateInventoryItem && (
+                          <option value={CREATE_ITEM_OPTION}>+ Create new inventory item</option>
+                        )}
                       </select>
                     </div>
 

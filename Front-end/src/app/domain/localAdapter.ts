@@ -537,23 +537,42 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
         const loaded = snapshotFor(input.bakeryId);
         if (!loaded.ok) return loaded;
         const snapshot = loaded.data;
+        const initialOnHand = input.initialOnHand ?? 0;
+        if (!Number.isFinite(initialOnHand) || initialOnHand < 0) {
+          return { ok: false, error: validation("Initial on-hand quantity must be zero or greater.", "initialOnHand") };
+        }
+        const unitCost = input.packageQuantity > 0 ? input.packagePrice / input.packageQuantity : 0;
         const newItem: DomainInventoryItem = {
           id: input.ingredientId,
           name: input.name,
           unit: input.unit,
-          onHand: 0,
+          onHand: initialOnHand,
           minLevel: input.minLevel,
           kind: input.kind,
-          status: "out-of-stock",
+          status: initialOnHand <= 0 ? "out-of-stock" : initialOnHand <= input.minLevel ? "low" : "in-stock",
           packageQuantity: input.packageQuantity,
           packagePrice: input.packagePrice,
-          unitCost: input.packageQuantity > 0 ? input.packagePrice / input.packageQuantity : 0,
+          unitCost,
         };
+        const transaction: DomainInventoryTransaction | undefined = initialOnHand > 0 ? {
+          id: `tx-opening-${input.ingredientId}`,
+          sourceKey: `opening-balance:${input.ingredientId}`,
+          itemId: newItem.id,
+          quantityChange: initialOnHand,
+          reason: "opening-balance",
+          transactionType: "opening_balance",
+          baseUnit: input.unit as DomainInventoryTransaction["baseUnit"],
+          unitCost,
+          totalCost: initialOnHand * unitCost,
+          sourceType: "inventory-creation",
+          sourceId: input.ingredientId,
+        } : undefined;
         snapshots[input.bakeryId] = {
           ...snapshot,
           inventoryById: { ...snapshot.inventoryById, [newItem.id]: newItem },
+          ...(transaction ? { inventoryTransactionsById: { ...snapshot.inventoryTransactionsById, [transaction.id]: transaction } } : {}),
         };
-        return { ok: true, data: { kind: "ingredient-created", operationId: input.operationId, changes: { inventoryItems: [newItem] } } };
+        return { ok: true, data: { kind: "ingredient-created", operationId: input.operationId, changes: { inventoryItems: [newItem], ...(transaction ? { inventoryTransactions: [transaction] } : {}) } } };
       });
     },
 
@@ -745,6 +764,10 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
         if (input.sellingPrice < 0) {
           return { ok: false, error: validation("Selling price cannot be negative.", "sellingPrice") };
         }
+        const prepLeadDays = input.prepLeadDays ?? 1;
+        if (!Number.isInteger(prepLeadDays) || prepLeadDays < 0) {
+          return { ok: false, error: validation("Preparation lead time must be a non-negative whole number.", "prepLeadDays") };
+        }
 
         const { batchCost, recipeIngredients } = computeRecipeBatchCostAndIngredients(input.ingredients, snapshot);
         const marginPercent = calculateRecipeMargin(input.sellingPrice, batchCost);
@@ -753,6 +776,7 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
           id: input.recipeId,
           name: input.name,
           yield: input.yield,
+          prepLeadDays,
           batchCost,
           sellingPrice: input.sellingPrice,
           flowId: input.flowId,
@@ -789,6 +813,7 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
 
         const name = input.name ?? existing.name;
         const yieldVal = input.yield ?? existing.yield;
+        const prepLeadDays = input.prepLeadDays ?? existing.prepLeadDays ?? 1;
         const sellingPrice = input.sellingPrice ?? existing.sellingPrice;
         const flowId = input.flowId === undefined ? existing.flowId : input.flowId;
 
@@ -801,12 +826,17 @@ export function createSessionLocalBakeryDomainAdapter(options: SessionLocalAdapt
           recipeIngredients = computed.recipeIngredients;
         }
 
+        if (!Number.isInteger(prepLeadDays) || prepLeadDays < 0) {
+          return { ok: false, error: validation("Preparation lead time must be a non-negative whole number.", "prepLeadDays") };
+        }
+
         const marginPercent = calculateRecipeMargin(sellingPrice, batchCost);
 
         const updatedRecipe: DomainRecipe = {
           ...existing,
           name,
           yield: yieldVal,
+          prepLeadDays,
           sellingPrice,
           flowId,
           batchCost,

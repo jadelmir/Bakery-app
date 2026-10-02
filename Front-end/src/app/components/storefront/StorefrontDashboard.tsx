@@ -20,6 +20,7 @@ import { selectSnapshot } from "../../state/selectors";
 import { createLocalBakeryAdapter } from "../../domain/localAdapter";
 import { StoreSettingsForm } from "./StoreSettingsForm";
 import type { DomainStorefrontProduct, DomainRecipe, BakeryDomainAdapter, UpdateStorefrontSettingsInput } from "../../domain/types";
+import { appUrl } from "../../../lib/appUrl";
 
 export interface StorefrontDashboardProps {
   adapter?: BakeryDomainAdapter;
@@ -45,7 +46,7 @@ export function StorefrontDashboard({ adapter: customAdapter }: StorefrontDashbo
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  const publicUrl = `${window.location.origin}/store/${slug}`;
+  const publicUrl = appUrl(`/store/${slug}`);
 
   const publishedCount = products.filter((p) => p.isPublished).length;
 
